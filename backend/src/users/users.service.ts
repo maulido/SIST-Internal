@@ -1,5 +1,6 @@
 import { Injectable, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import * as bcrypt from 'bcrypt';
 
 // Temporary type definition since Prisma Client generation failed
@@ -8,9 +9,12 @@ type UserCreateInput = any;
 
 @Injectable()
 export class UsersService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private auditService: AuditService
+    ) { }
 
-    async create(data: UserCreateInput): Promise<User> {
+    async create(data: UserCreateInput, creatorId?: string): Promise<User> {
         const existingUser = await (this.prisma as any).user.findUnique({
             where: { email: data.email },
         });
@@ -20,12 +24,23 @@ export class UsersService {
         }
 
         const hashedPassword = await bcrypt.hash(data.password, 10);
-        return (this.prisma as any).user.create({
+        const newUser = await (this.prisma as any).user.create({
             data: {
                 ...data,
                 password: hashedPassword,
             },
         });
+
+        // Audit Log
+        await this.auditService.log(
+            creatorId || null,
+            'CREATE',
+            'User',
+            newUser.id,
+            `Created user ${newUser.email} with role ${newUser.role}`
+        );
+
+        return newUser;
     }
 
     async findOne(email: string): Promise<User | null> {
@@ -44,13 +59,25 @@ export class UsersService {
         });
     }
 
-    async update(id: string, data: any): Promise<User> {
+    async update(id: string, data: any, modifierId?: string): Promise<User> {
         if (data.password) {
             data.password = await bcrypt.hash(data.password, 10);
         }
-        return (this.prisma as any).user.update({
+
+        const updatedUser = await (this.prisma as any).user.update({
             where: { id },
             data,
         });
+
+        // Audit Log
+        await this.auditService.log(
+            modifierId || null,
+            'UPDATE',
+            'User',
+            id,
+            `Updated user ${updatedUser.email}. Fields: ${Object.keys(data).join(', ')}`
+        );
+
+        return updatedUser;
     }
 }

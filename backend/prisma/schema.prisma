@@ -20,6 +20,22 @@ model User {
 
   investorProfile Investor?
   transactions    Transaction[]
+  stockLogs       StockLog[]
+  auditLogs       AuditLog[]
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?               // Nullable for system actions
+  user      User?    @relation(fields: [userId], references: [id])
+  
+  action    String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT
+  entity    String   // User, Product, Transaction, Investor, etc.
+  entityId  String   // ID of the target record
+  
+  details   String?  // JSON string or Description
+  
+  createdAt DateTime @default(now())
 }
 
 model Investor {
@@ -85,6 +101,7 @@ model Product {
   image       String?  // URL to product image
   
   transactionItems TransactionItem[]
+  stockLogs        StockLog[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -127,7 +144,30 @@ model Supplier {
   category      String?
   
   transactions  Transaction[]
+  stockLogs     StockLog[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model StockLog {
+  id           String   @id @default(uuid())
+  
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id])
+  
+  changeAmount Int      // Positive for restock, negative for sale/adjustment
+  finalStock   Int
+  type         String   // RESTOCK, SALE, ADJUSTMENT, INITIAL
+  
+  supplierId   String?
+  supplier     Supplier? @relation(fields: [supplierId], references: [id])
+  
+  cost         Decimal? // Cost at the time of purchase/log
+  note         String?
+  
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id])
+  
+  createdAt    DateTime @default(now())
 }

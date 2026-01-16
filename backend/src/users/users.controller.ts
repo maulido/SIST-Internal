@@ -1,15 +1,18 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Patch, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Patch, Delete, Request } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthGuard } from '@nestjs/passport';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('users')
 export class UsersController {
     constructor(private readonly usersService: UsersService) { }
 
     @Post()
-    create(@Body() createUserDto: any) {
-        return this.usersService.create(createUserDto);
+    @Roles('OWNER')
+    create(@Body() createUserDto: any, @Request() req: any) {
+        return this.usersService.create(createUserDto, req.user?.userId);
     }
 
     @Get()
@@ -28,8 +31,8 @@ export class UsersController {
     }
 
     @Patch(':id')
-    update(@Param('id') id: string, @Body() updateData: any) {
-        // We need to implement update in service
-        return this.usersService.update(id, updateData);
+    @Roles('OWNER')
+    update(@Param('id') id: string, @Body() updateData: any, @Request() req: any) {
+        return this.usersService.update(id, updateData, req.user?.userId);
     }
 }

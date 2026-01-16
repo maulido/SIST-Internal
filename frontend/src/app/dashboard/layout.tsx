@@ -67,20 +67,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {
             name: 'Management',
             children: [
-                { name: 'Users', path: '/dashboard/users' },
-                { name: 'Suppliers', path: '/dashboard/suppliers' },
-                { name: 'Assets', path: '/dashboard/assets' },
-                { name: 'Investors', path: '/dashboard/investors' },
+                ...(user?.role === 'OWNER' ? [
+                    { name: 'Users', path: '/dashboard/users' },
+                    { name: 'Suppliers', path: '/dashboard/suppliers' },
+                    { name: 'Assets', path: '/dashboard/assets' },
+                    { name: 'Investors', path: '/dashboard/investors' },
+                    { name: 'Activity Log', path: '/dashboard/activity' },
+                ] : [])
             ]
         },
         {
             name: 'Analytics',
             children: [
-                { name: 'Reports', path: '/dashboard/reports' },
-                { name: 'Analysis', path: '/dashboard/analysis' },
+                ...(user?.role === 'OWNER' || user?.role === 'INVESTOR' ? [
+                    { name: 'Reports', path: '/dashboard/reports' },
+                    { name: 'Analysis', path: '/dashboard/analysis' },
+                ] : [])
             ]
         }
-    ];
+    ].filter(group => group.children && group.children.length > 0);
 
     const getPageTitle = () => {
         for (const group of menuGroups) {

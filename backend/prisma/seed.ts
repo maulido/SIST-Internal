@@ -1,185 +1,200 @@
 import { PrismaClient } from '@prisma/client';
+import { faker } from '@faker-js/faker';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main() {
-    console.log('🌱 Starting seed...');
+    console.log('🌱 Starting seeding...');
 
-    const email = 'admin@sist.com';
-    const password = await bcrypt.hash('admin123', 10);
+    // 1. Clean Database
+    console.log('🧹 Cleaning database...');
+    // Order matters for relational integrity (if foreign keys enforce it, though SQLite usually permissive)
+    await prisma.auditLog.deleteMany();
+    await prisma.transactionItem.deleteMany();
+    await prisma.stockLog.deleteMany();
+    await prisma.transaction.deleteMany();
+    // Delete relational tables first
+    await prisma.investor.deleteMany();
+    await prisma.product.deleteMany();
+    await prisma.supplier.deleteMany();
+    await prisma.asset.deleteMany();
+    await prisma.recurringExpense.deleteMany();
+    await prisma.user.deleteMany();
 
-    // 1. Create Admin
-    const admin = await prisma.user.upsert({
-        where: { email },
-        update: {},
-        create: {
-            email,
-            password,
-            name: 'System Admin',
+    // 2. Create Users
+    console.log('👤 Creating users...');
+    const passwordHash = await bcrypt.hash('password123', 10);
+
+    const admin = await prisma.user.create({
+        data: {
+            email: 'admin@sist.com',
+            password: passwordHash,
+            name: 'System Administrator',
             role: 'OWNER',
-        },
+        }
     });
 
-    console.log('✅ Admin user created/verified.');
+    const staff = await prisma.user.create({
+        data: {
+            email: 'staff@sist.com',
+            password: passwordHash,
+            name: 'Staff Member',
+            role: 'KASIR',
+        }
+    });
 
-    // 2. Create Products (20 items)
-    const productsData = [
-        { name: 'Kopi Susu Gula Aren', price: 18000, cost: 8000, stock: 100, category: 'Beverage' },
-        { name: 'Cappuccino', price: 25000, cost: 10000, stock: 50, category: 'Beverage' },
-        { name: 'Americano', price: 20000, cost: 5000, stock: 50, category: 'Beverage' },
-        { name: 'Latte', price: 28000, cost: 12000, stock: 60, category: 'Beverage' },
-        { name: 'Espresso', price: 15000, cost: 4000, stock: 40, category: 'Beverage' },
-        { name: 'Croissant', price: 22000, cost: 10000, stock: 30, category: 'Food' },
-        { name: 'Pain au Chocolat', price: 25000, cost: 12000, stock: 25, category: 'Food' },
-        { name: 'Sandwich Tuna', price: 35000, cost: 18000, stock: 15, category: 'Food' },
-        { name: 'Nasi Goreng Special', price: 30000, cost: 15000, stock: 20, category: 'Food' },
-        { name: 'Mie Goreng Jawa', price: 28000, cost: 12000, stock: 20, category: 'Food' },
-        { name: 'Mineral Water', price: 5000, cost: 2000, stock: 200, category: 'Beverage' },
-        { name: 'Ice Tea', price: 8000, cost: 2000, stock: 100, category: 'Beverage' },
-        { name: 'Lemon Tea', price: 12000, cost: 4000, stock: 80, category: 'Beverage' },
-        { name: 'French Fries', price: 18000, cost: 8000, stock: 40, category: 'Food' },
-        { name: 'Onion Rings', price: 20000, cost: 9000, stock: 30, category: 'Food' },
-        { name: 'Chicken Wings', price: 35000, cost: 20000, stock: 25, category: 'Food' },
-        { name: 'Spaghetti Bolognese', price: 40000, cost: 20000, stock: 15, category: 'Food' },
-        { name: 'Spaghetti Carbonara', price: 42000, cost: 21000, stock: 15, category: 'Food' },
-        { name: 'Matcha Latte', price: 30000, cost: 14000, stock: 40, category: 'Beverage' },
-        { name: 'Red Velvet Latte', price: 30000, cost: 14000, stock: 40, category: 'Beverage' },
-    ];
-
-    const products: any[] = [];
-    for (const p of productsData) {
-        const product = await prisma.product.upsert({
-            where: { sku: p.name.toUpperCase().replace(/ /g, '_') },
-            update: {},
-            create: { ...p, sku: p.name.toUpperCase().replace(/ /g, '_') }
-        });
-        products.push(product);
+    const investorsUsers: any[] = [];
+    for (let i = 0; i < 5; i++) {
+        investorsUsers.push(await prisma.user.create({
+            data: {
+                email: faker.internet.email(),
+                password: passwordHash,
+                name: faker.person.fullName(),
+                role: 'INVESTOR',
+            }
+        }));
     }
-    console.log(`✅ Created ${products.length} Products.`);
 
-    // 3. Create Suppliers (5 items)
-    const suppliersData = [
-        { name: 'PT. Kopi Nusantara', category: 'Raw Material', contactPerson: 'Budi' },
-        { name: 'UD. Susu Segar', category: 'Raw Material', contactPerson: 'Siti' },
-        { name: 'Toko Plastik Jaya', category: 'Packaging', contactPerson: 'Agus' },
-        { name: 'Internet Provider X', category: 'Utility', contactPerson: 'Call Center' },
-        { name: 'PLN Persero', category: 'Utility', contactPerson: 'PLN' }
-    ];
-
+    // 3. Create Suppliers
+    console.log('🚚 Creating suppliers...');
     const suppliers: any[] = [];
-    for (const s of suppliersData) {
-        const supplier = await prisma.supplier.create({ data: s });
-        suppliers.push(supplier);
+    for (let i = 0; i < 10; i++) {
+        suppliers.push(await prisma.supplier.create({
+            data: {
+                name: faker.company.name(),
+                contactPerson: faker.person.fullName(),
+                email: faker.internet.email(),
+                phone: faker.phone.number(),
+                address: faker.location.streetAddress(),
+                category: faker.helpers.arrayElement(['Food', 'Equipment', 'Services', 'Packaging'])
+            }
+        }));
     }
-    console.log(`✅ Created ${suppliers.length} Suppliers.`);
 
-    // 4. Create Transactions (60 Sales, 10 Expenses)
-    const transactionCount = await prisma.transaction.count();
-    if (transactionCount < 50) {
-        console.log('Generating 70 random transactions...');
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - 30); // Last 30 days
+    // 4. Create Products
+    console.log('📦 Creating products...');
+    const products: any[] = [];
+    const categories = ['Coffee', 'Non-Coffee', 'Snacks', 'Main Course', 'Dessert'];
 
-        // Generate Sales
-        for (let i = 0; i < 60; i++) {
-            const randomProduct = products[Math.floor(Math.random() * products.length)];
-            const qty = Math.floor(Math.random() * 5) + 1;
-            const amount = Number(randomProduct.price) * qty;
-            const randomDate = new Date(startDate.getTime() + Math.random() * (new Date().getTime() - startDate.getTime()));
+    for (let i = 0; i < 50; i++) {
+        const isService = Math.random() > 0.9; // 10% services
+        const price = Number(faker.commerce.price({ min: 10000, max: 50000, dec: 0 }));
+        const cost = Math.floor(price * 0.6); // 40% margin
 
-            await prisma.transaction.create({
-                data: {
-                    type: 'SALE',
-                    amount: amount,
-                    date: randomDate,
-                    description: `Sale of ${randomProduct.name}`,
-                    paymentMethod: ['CASH', 'QRIS', 'TRANSFER'][Math.floor(Math.random() * 3)],
-                    creatorId: admin.id,
-                    items: {
-                        create: {
-                            productId: randomProduct.id,
-                            quantity: qty,
-                            priceAtTime: randomProduct.price,
-                            subtotal: amount
-                        }
+        products.push(await prisma.product.create({
+            data: {
+                name: faker.commerce.productName(),
+                sku: faker.string.alphanumeric(8).toUpperCase(),
+                type: isService ? 'SERVICE' : 'GOODS',
+                price: price,
+                cost: isService ? null : cost,
+                stock: isService ? 0 : faker.number.int({ min: 10, max: 100 }),
+                category: faker.helpers.arrayElement(categories),
+                description: faker.commerce.productDescription(),
+            }
+        }));
+    }
+
+    // 5. Create Investors Profile
+    console.log('💼 Creating investor profiles...');
+    const investors: any[] = [];
+    for (const user of investorsUsers) {
+        const investment = Number(faker.finance.amount({ min: 1000000, max: 50000000, dec: 0 }));
+        investors.push(await prisma.investor.create({
+            data: {
+                userId: user.id,
+                totalInvestment: investment,
+                sharesParam: 0,
+                joinedAt: faker.date.past(),
+            }
+        }));
+    }
+
+    // 6. Create Transactions (Sales)
+    console.log('💰 Creating sales transactions...');
+    for (let i = 0; i < 50; i++) {
+        const numItems = faker.number.int({ min: 1, max: 5 });
+        const selectedProducts = faker.helpers.arrayElements(products, numItems);
+        let totalAmount = 0;
+
+        // Calculate items and total
+        const transactionItemsData = selectedProducts.map((p: any) => {
+            const qty = faker.number.int({ min: 1, max: 3 });
+            const subtotal = Number(p.price) * qty;
+            totalAmount += subtotal;
+            return {
+                productId: p.id,
+                quantity: qty,
+                priceAtTime: p.price,
+                subtotal: subtotal
+            };
+        });
+
+        const transaction = await prisma.transaction.create({
+            data: {
+                type: 'SALE',
+                amount: totalAmount,
+                paymentMethod: faker.helpers.arrayElement(['CASH', 'QRIS', 'TRANSFER']),
+                description: `Sale of ${numItems} items`,
+                creatorId: Math.random() > 0.5 ? admin.id : staff.id,
+                date: faker.date.recent({ days: 30 }),
+                items: {
+                    create: transactionItemsData
+                }
+            }
+        });
+
+        // Create Stock Logs 
+        for (const item of transactionItemsData) {
+            const product = products.find((p: any) => p.id === item.productId);
+            if (product && product.type === 'GOODS') {
+                await prisma.stockLog.create({
+                    data: {
+                        productId: item.productId,
+                        changeAmount: -item.quantity,
+                        finalStock: product.stock - item.quantity,
+                        type: 'SALE',
+                        note: `Transaction ${transaction.id}`,
+                        userId: transaction.creatorId
                     }
-                }
-            });
+                });
+            }
         }
-
-        // Generate Expenses
-        const expenseCategories = ['Rent', 'Utilities', 'Raw Materials', 'Salary', 'Maintenance'];
-        for (let i = 0; i < 10; i++) {
-            const randomSupplier = suppliers[Math.floor(Math.random() * suppliers.length)];
-            const category = expenseCategories[Math.floor(Math.random() * expenseCategories.length)];
-            const amount = Math.floor(Math.random() * 1000000) + 50000;
-            const randomDate = new Date(startDate.getTime() + Math.random() * (new Date().getTime() - startDate.getTime()));
-
-            await prisma.transaction.create({
-                data: {
-                    type: 'EXPENSE',
-                    amount: amount,
-                    date: randomDate,
-                    description: `[${category}] Payment to ${randomSupplier.name}`,
-                    paymentMethod: 'TRANSFER',
-                    supplierId: randomSupplier.id
-                }
-            });
-        }
-        console.log('✅ Generated 70 Random Transactions (Sales & Expenses).');
-    } else {
-        console.log('ℹ️ Transactions already exist, skipping generation.');
     }
 
-    // 5. Investors (3 items)
-    const investorsData = [
-        { name: 'Investor Alpha', email: 'alpha@invest.com', capital: 50000000 },
-        { name: 'Investor Beta', email: 'beta@invest.com', capital: 30000000 },
-        { name: 'Investor Gamma', email: 'gamma@invest.com', capital: 20000000 },
-    ];
-
-    for (const inv of investorsData) {
-        // Create User first
-        const invUser = await prisma.user.upsert({
-            where: { email: inv.email },
-            update: {},
-            create: {
-                email: inv.email,
-                password: await bcrypt.hash('123456', 10),
-                name: inv.name,
-                role: 'INVESTOR'
+    // 7. Create Expenses
+    console.log('💸 Creating expenses...');
+    for (let i = 0; i < 20; i++) {
+        await prisma.transaction.create({
+            data: {
+                type: 'EXPENSE',
+                amount: Number(faker.finance.amount({ min: 50000, max: 1000000, dec: 0 })),
+                paymentMethod: 'CASH',
+                description: faker.finance.transactionDescription(),
+                creatorId: admin.id,
+                date: faker.date.recent({ days: 60 }),
             }
         });
-
-        const invProfile = await prisma.investor.upsert({
-            where: { userId: invUser.id },
-            update: {},
-            create: {
-                userId: invUser.id,
-                totalInvestment: inv.capital,
-                sharesParam: inv.capital / 1000000, // Dummy share calculation
-            }
-        });
-
-        // Initial Capital Transaction
-        const capTx = await prisma.transaction.findFirst({ where: { investorId: invProfile.id, type: 'CAPITAL_IN' } });
-        if (!capTx) {
-            await prisma.transaction.create({
-                data: {
-                    type: 'CAPITAL_IN',
-                    amount: inv.capital,
-                    date: new Date(),
-                    description: `Initial Capital from ${inv.name}`,
-                    investorId: invProfile.id,
-                    paymentMethod: 'TRANSFER'
-                }
-            });
-        }
     }
-    console.log('✅ Created 3 Investors with Capital.');
 
-    console.log('🚀 Seed completed successfully!');
+    // 8. Create Assets
+    console.log('🏢 Creating assets...');
+    for (let i = 0; i < 10; i++) {
+        const price = Number(faker.finance.amount({ min: 500000, max: 10000000, dec: 0 }));
+        await prisma.asset.create({
+            data: {
+                name: faker.commerce.productName() + ' (Asset)',
+                category: 'Equipment',
+                purchaseDate: faker.date.past(),
+                purchasePrice: price,
+                currentValue: price * 0.8,
+                location: 'Main Store'
+            }
+        });
+    }
+
+    console.log('✅ Seeding completed.');
 }
 
 main()

@@ -6,6 +6,9 @@ import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import { RevenueChart } from '@/components/dashboard/RevenueChart';
 import { TopProducts } from '@/components/dashboard/TopProducts';
+import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart';
+import { PaymentMethodChart } from '@/components/dashboard/PaymentMethodChart';
+import RecentActivityWidget from '@/components/RecentActivityWidget';
 
 export default function DashboardPage() {
     const [stats, setStats] = useState<any>(null);
@@ -171,7 +174,6 @@ export default function DashboardPage() {
                 {/* Left Column: Recent Transactions & Revenue Chart */}
                 <div className="md:col-span-2 space-y-6">
 
-                    {/* Revenue Chart Block */}
                     <div className="bg-[var(--card-bg)] rounded-3xl border border-[var(--card-border)] overflow-hidden shadow-sm p-6">
                         <div className="flex justify-between items-center mb-6">
                             <div>
@@ -183,6 +185,21 @@ export default function DashboardPage() {
                             </div>
                         </div>
                         <RevenueChart data={stats.revenueForecast.forecast} />
+                    </div>
+
+                    {/* Advanced Analytics Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Category Chart */}
+                        <div className="bg-[var(--card-bg)] rounded-3xl border border-[var(--card-border)] p-6 shadow-sm">
+                            <h3 className="font-bold text-[var(--foreground)] mb-4">Sales by Category</h3>
+                            <CategoryPieChart data={stats.salesByCategory || []} />
+                        </div>
+
+                        {/* Payment Method Chart */}
+                        <div className="bg-[var(--card-bg)] rounded-3xl border border-[var(--card-border)] p-6 shadow-sm">
+                            <h3 className="font-bold text-[var(--foreground)] mb-4">Payment Methods</h3>
+                            <PaymentMethodChart data={stats.salesByPaymentMethod || []} />
+                        </div>
                     </div>
 
                     {/* Recent Transactions Block */}
@@ -251,18 +268,24 @@ export default function DashboardPage() {
                         <TopProducts products={stats.topProducts || []} />
                     </div>
 
-                    {/* Quick Actions (Keep existing) */}
+                    {/* Recent Activity Widget */}
+                    <div className="h-[400px]">
+                        <RecentActivityWidget />
+                    </div>
+
+                    {/* Quick Actions */}
                     <div className="bg-gradient-to-br from-[var(--primary)] to-[var(--secondary)] rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
-                        {/* ... keep existing logic if needed or simplify ... */}
                         <div className="relative z-10">
                             <h3 className="text-xl font-bold">Quick Actions</h3>
                             <div className="grid grid-cols-2 gap-3 mt-4">
                                 <Link href="/dashboard/products" className="bg-white/20 hover:bg-white/30 backdrop-blur-md p-3 rounded-xl text-center text-sm font-medium transition-colors">
                                     Add Product
                                 </Link>
-                                <Link href="/dashboard/users" className="bg-white/20 hover:bg-white/30 backdrop-blur-md p-3 rounded-xl text-center text-sm font-medium transition-colors">
-                                    Add User
-                                </Link>
+                                {user?.role === 'OWNER' && (
+                                    <Link href="/dashboard/users" className="bg-white/20 hover:bg-white/30 backdrop-blur-md p-3 rounded-xl text-center text-sm font-medium transition-colors">
+                                        Add User
+                                    </Link>
+                                )}
                             </div>
                         </div>
                     </div>

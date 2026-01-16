@@ -24,48 +24,26 @@ export default function ReportsPage() {
         window.print();
     };
 
-    const handleExportCSV = () => {
-        if (!pnl || !bs) return;
-
-        let csvContent = "data:text/csv;charset=utf-8,";
-
-        if (activeTab === 'PNL') {
-            csvContent += "Profit & Loss Statement\n";
-            csvContent += `Generated at,${new Date().toLocaleString()}\n\n`;
-            csvContent += "Item,Amount\n";
-            csvContent += `Revenue,${pnl.revenue}\n`;
-            csvContent += `COGS,${pnl.cogs}\n`;
-            csvContent += `Gross Profit,${pnl.grossProfit}\n`;
-            csvContent += `Total Expenses,${pnl.totalExpenses}\n`;
-            csvContent += `Net Profit,${pnl.netProfit}\n\n`;
-            csvContent += "Expense Breakdown\n";
-            Object.entries(pnl.expenseBreakdown).forEach(([key, val]) => {
-                csvContent += `${key},${val}\n`;
+    const handleExportExcel = async () => {
+        if (!token) return;
+        try {
+            const response = await axios.get('http://localhost:3000/reports/export', {
+                headers: { Authorization: `Bearer ${token}` },
+                responseType: 'blob', // Important for binary files
             });
-        } else {
-            csvContent += "Balance Sheet\n";
-            csvContent += `Generated at,${new Date().toLocaleString()}\n\n`;
-            csvContent += "Category,Values\n";
-            csvContent += "ASSETS\n";
-            csvContent += `Cash,${bs.assets.cash}\n`;
-            csvContent += `Inventory,${bs.assets.inventory}\n`;
-            csvContent += `Fixed Assets,${bs.assets.fixedAssets}\n`;
-            csvContent += `Total Assets,${bs.assets.total}\n\n`;
-            csvContent += "LIABILITIES\n";
-            csvContent += `Total Liabilities,${bs.liabilities.total}\n\n`;
-            csvContent += "EQUITY\n";
-            csvContent += `Capital,${bs.equity.capital}\n`;
-            csvContent += `Retained Earnings,${bs.equity.retainedEarnings}\n`;
-            csvContent += `Total Equity,${bs.equity.total}\n`;
-        }
 
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `sist_report_${activeTab.toLowerCase()}_${new Date().toISOString().split('T')[0]}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+            // Create download link
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'Financial_Report.xlsx'); // Filename matches backend
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode?.removeChild(link);
+        } catch (error) {
+            console.error('Export failed:', error);
+            alert('Failed to export report');
+        }
     };
 
     if (!pnl || !bs) return (
@@ -86,13 +64,13 @@ export default function ReportsPage() {
                 </div>
                 <div className="flex gap-2">
                     <button
-                        onClick={handleExportCSV}
+                        onClick={handleExportExcel}
                         className="px-4 py-2 bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--foreground)]/5 transition-colors text-sm font-medium flex items-center gap-2"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-green-600">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
-                        Export CSV
+                        Export Excel
                     </button>
                     <button
                         onClick={handlePrint}

@@ -1,18 +1,22 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 type TransactionCreateInput = any;
 
 @Injectable()
 export class TransactionsService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private auditService: AuditService
+    ) { }
 
     async create(data: TransactionCreateInput) {
         // Basic fallback
         return (this.prisma as any).transaction.create({ data });
     }
 
-    async createSale(data: { items: any[], paymentMethod: string, taxRate?: number, adminFee?: number }) {
+    async createSale(data: { items: any[], paymentMethod: string, taxRate?: number, adminFee?: number }, userId?: string) {
         const { items, paymentMethod, taxRate = 0, adminFee = 0 } = data;
 
         let totalAmount = 0;
@@ -40,17 +44,8 @@ export class TransactionsService {
         }
 
         // 2. Apply Tax & Fees
-        // Logic: Amount recorded in transaction is the "Net" or "Gross"? 
-        // Requirement says: "Pendapatan kotor", "Pajak", "Potongan Admin", "Laba Bersih".
-        // We'll store the gross amount and maybe separate fields if we added them, but schema is simple for now.
-        // We will assume 'amount' is final transaction value, but we might want to store breakdown in description or new fields.
-        // For MVP, we'll store the Total Sale Value.
-
         const taxAmount = totalAmount * (taxRate / 100);
-        const finalTotal = totalAmount + taxAmount + adminFee; // Assuming admin fee is added to customer bill? Or deducted?
-        // Requirement 6.2: "Semua potongan otomatis terhitung sebagai pengurang pendapatan bersih." -> Admin fee deducted from merchant
-        // So Sales = Gross Revenue.
-        // We'll record the Gross Sales Amount. 
+        const finalTotal = totalAmount + taxAmount + adminFee;
 
         // 3. Create Transaction
         const transaction = await (this.prisma as any).transaction.create({
@@ -59,13 +54,23 @@ export class TransactionsService {
                 amount: finalTotal, // Value collected
                 paymentMethod,
                 description: `Sale of ${items.length} items. Tax: ${taxAmount}, Fee: ${adminFee}`,
+                creatorId: userId || null,
                 items: {
                     create: transactionItems
                 }
             }
         });
 
-        // 4. Update Stock
+        // Audit Log (Global)
+        await this.auditService.log(
+            userId || null,
+            'CREATE',
+            'Transaction',
+            transaction.id,
+            `Sale of ${items.length} items. Total: ${finalTotal}`
+        );
+
+        // 4. Update Stock & Create Logs
         for (const item of items) {
             const product = await (this.prisma as any).product.findUnique({ where: { id: item.productId } });
             if (product && product.type !== 'SERVICE') {
@@ -73,21 +78,45 @@ export class TransactionsService {
                     where: { id: item.productId },
                     data: { stock: { decrement: item.quantity } }
                 });
+
+                // Audit Log (Stock Specific) - kept for granularity
+                await (this.prisma as any).stockLog.create({
+                    data: {
+                        productId: item.productId,
+                        changeAmount: -item.quantity,
+                        finalStock: product.stock - item.quantity,
+                        type: 'SALE',
+                        note: `Transaction ${transaction.id}`,
+                        userId: userId || null
+                    }
+                });
             }
         }
 
         return transaction;
     }
 
-    async createExpense(data: { category: string, amount: number, description: string, paymentMethod: string }) {
-        return (this.prisma as any).transaction.create({
+    async createExpense(data: { category: string, amount: number, description: string, paymentMethod: string }, userId?: string) {
+        const transaction = await (this.prisma as any).transaction.create({
             data: {
                 type: 'EXPENSE',
                 amount: data.amount,
                 paymentMethod: data.paymentMethod,
-                description: `[${data.category}] ${data.description}`
+                description: `${data.category}: ${data.description}`,
+                creatorId: userId || null
             }
         });
+
+        // Audit Log
+        await this.auditService.log(
+            userId || null,
+            'CREATE',
+            'Transaction',
+            transaction.id,
+            `Expense: ${data.category} - ${data.amount}`
+        );
+
+        return transaction;
     }
 
     async findAll() {

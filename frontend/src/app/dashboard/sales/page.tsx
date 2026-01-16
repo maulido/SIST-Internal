@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/Drawer';
+import { ReceiptTemplate } from '@/components/ReceiptTemplate';
+import { SalesHistory } from '@/components/SalesHistory';
 
 export default function SalesPage() {
     const [products, setProducts] = useState<any[]>([]);
@@ -14,25 +16,71 @@ export default function SalesPage() {
 
     // Receipt Drawer State
     const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [lastTransaction, setLastTransaction] = useState<any>(null);
+
+    // Search & Barcode State
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
 
     useEffect(() => {
         if (token && !isLoading) {
             axios.get('http://localhost:3000/products', {
                 headers: { Authorization: `Bearer ${token}` }
             })
-                .then(res => setProducts(res.data))
+                .then(res => {
+                    setProducts(res.data);
+                    setFilteredProducts(res.data);
+                })
                 .catch(err => console.error(err));
         }
     }, [token, isLoading]);
 
+    // Filter Logic
+    useEffect(() => {
+        if (!searchQuery) {
+            setFilteredProducts(products);
+            return;
+        }
+
+        const lowerQuery = searchQuery.toLowerCase();
+
+        // 1. Scan-to-Add Logic (Exact SKU Match)
+        const exactMatch = products.find(p => p.sku?.toLowerCase() === lowerQuery || p.id === lowerQuery);
+        if (exactMatch && exactMatch.stock > 0) {
+            addToCart(exactMatch);
+            setSearchQuery(''); // Clear after scan
+            return;
+        }
+
+        // 2. Normal Filter
+        const filtered = products.filter(p =>
+            p.name.toLowerCase().includes(lowerQuery) ||
+            p.sku?.toLowerCase().includes(lowerQuery)
+        );
+        setFilteredProducts(filtered);
+    }, [searchQuery, products]);
+
+    // Keyboard Shortcut: Focus Search on "/"
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === '/' && document.activeElement?.tagName !== 'INPUT') {
+                e.preventDefault();
+                document.getElementById('pos-search')?.focus();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
     const addToCart = (product: any) => {
+        // ... (existing logic)
         if (product.stock <= 0) return; // Prevent adding out of stock
         const existing = cart.find(item => item.productId === product.id);
         if (existing) {
             // Check stock limit
             if (existing.quantity >= product.stock) {
-                alert('Not enough stock available');
+                // Don't alert on scan, just ignore or play sound in future
                 return;
             }
             setCart(cart.map(item => item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item));
@@ -40,6 +88,8 @@ export default function SalesPage() {
             setCart([...cart, { productId: product.id, name: product.name, price: product.price, quantity: 1, stock: product.stock }]);
         }
     };
+
+    // ... (rest of functions) 
 
     const removeFromCart = (productId: string) => {
         setCart(cart.filter(item => item.productId !== productId));
@@ -49,8 +99,8 @@ export default function SalesPage() {
         setCart(cart.map(item => {
             if (item.productId === productId) {
                 const newQty = item.quantity + delta;
-                if (newQty <= 0) return item; // Don't reduce below 1 here, use remove button
-                if (newQty > item.stock) return item; // Don't exceed stock
+                if (newQty <= 0) return item;
+                if (newQty > item.stock) return item;
                 return { ...item, quantity: newQty };
             }
             return item;
@@ -62,6 +112,7 @@ export default function SalesPage() {
     const grandTotal = total + tax;
 
     const handleCheckout = async () => {
+        // ... (existing checkout logic)
         setIsProcessing(true);
 
         // Mock Payment Gateway Delay
@@ -78,13 +129,13 @@ export default function SalesPage() {
             };
 
             // In a real app, we'd get the ID back from the response to show in receipt
-            await axios.post('http://localhost:3000/transactions/sale', payload, {
+            const response = await axios.post('http://localhost:3000/transactions/sale', payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
             // Set receipt data
             setLastTransaction({
-                id: `TRX-${Date.now()}`, // Mock ID since API might not return it
+                id: response.data.id || `TRX-${Date.now()}`,
                 date: new Date(),
                 items: [...cart],
                 total,
@@ -107,14 +158,34 @@ export default function SalesPage() {
         <div className="flex flex-col lg:flex-row h-full gap-6">
             {/* Product List */}
             <div className="flex-1 overflow-hidden flex flex-col">
-                <div className="mb-6">
-                    <h3 className="text-3xl font-bold text-[var(--foreground)]">Point of Sale</h3>
-                    <p className="text-gray-500">Select products to add to cart</p>
+                <div className="mb-6 flex flex-col md:flex-row justify-between md:items-center gap-4">
+                    <div>
+                        <h3 className="text-3xl font-bold text-[var(--foreground)]">Point of Sale</h3>
+                        <p className="text-gray-500">Fast checkout system</p>
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className="relative w-full md:w-80">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-400">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                            </svg>
+                        </div>
+                        <input
+                            id="pos-search"
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search or Scan Barcode... (/)"
+                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-[var(--card-border)] bg-[var(--background)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 transition-all outline-none"
+                            autoFocus
+                        />
+                    </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto pr-2">
                     <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {products.map(product => (
+                        {filteredProducts.map(product => (
                             <div key={product.id}
                                 onClick={() => addToCart(product)}
                                 className={`
@@ -299,14 +370,98 @@ export default function SalesPage() {
                         </div>
                     </div>
 
-                    <button
-                        onClick={() => setIsReceiptOpen(false)}
-                        className="w-full py-3 rounded-lg bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--foreground)] font-medium hover:bg-[var(--card-border)] transition-colors"
-                    >
-                        Start New Sale
-                    </button>
+                    <div className="grid grid-cols-2 gap-3 mt-4">
+                        <button
+                            onClick={() => window.print()}
+                            className="w-full py-3 rounded-lg bg-[var(--primary)] text-white font-bold hover:opacity-90 transition-all flex items-center justify-center gap-2"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" />
+                            </svg>
+                            Print Receipt
+                        </button>
+                        <button
+                            onClick={() => setIsReceiptOpen(false)}
+                            className="w-full py-3 rounded-lg bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--foreground)] font-medium hover:bg-[var(--card-border)] transition-colors"
+                        >
+                            Next Order
+                        </button>
+                    </div>
                 </div>
             </Drawer>
+
+            {/* Hidden Printable Receipt */}
+            <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-4 text-black font-mono text-xs leading-tight">
+                <style jsx global>{`
+                    @media print {
+                        @page { margin: 0; size: 80mm auto; }
+                        body * { visibility: hidden; }
+                        #printable-receipt, #printable-receipt * { visibility: visible; }
+                        #printable-receipt { position: absolute; left: 0; top: 0; width: 100%; }
+                    }
+                `}</style>
+                <div id="printable-receipt" className="max-w-[80mm] mx-auto">
+                    <div className="text-center mb-4">
+                        <h1 className="text-xl font-bold uppercase">SIST Coffee</h1>
+                        <p>Jl. Jendral Sudirman No. 1</p>
+                        <p>Jakarta Pusat</p>
+                        <p className="mt-2 text-[10px]">{lastTransaction?.date?.toLocaleString()}</p>
+                        <p>TRX: {lastTransaction?.id}</p>
+                    </div>
+
+                    <div className="border-b border-black border-dashed my-2"></div>
+
+                    <div className="space-y-2">
+                        {lastTransaction?.items.map((item: any) => (
+                            <div key={item.productId} className="flex flex-col">
+                                <div className="font-bold">{item.name}</div>
+                                <div className="flex justify-between">
+                                    <span>{item.quantity} x {item.price.toLocaleString()}</span>
+                                    <span>{(item.price * item.quantity).toLocaleString()}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="border-b border-black border-dashed my-2"></div>
+
+                    <div className="space-y-1">
+                        <div className="flex justify-between">
+                            <span>Subtotal</span>
+                            <span>{lastTransaction?.total.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span>Tax (11%)</span>
+                            <span>{lastTransaction?.tax.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-sm mt-1">
+                            <span>TOTAL</span>
+                            <span>Rp {lastTransaction?.grandTotal.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-[10px] mt-1">
+                            <span>Pay ({lastTransaction?.paymentMethod})</span>
+                            <span>Rp {lastTransaction?.grandTotal.toLocaleString()}</span>
+                        </div>
+                    </div>
+
+                    <div className="border-b border-black border-dashed my-2"></div>
+
+                    <div className="text-center mt-4">
+                        <p>Thank you for shopping!</p>
+                        <p className="text-[10px] mt-1">Powered by SIST</p>
+                    </div>
+                </div>
+            </div>
+            {/* Sales History Drawer */}
+            <SalesHistory
+                isOpen={isHistoryOpen}
+                onClose={() => setIsHistoryOpen(false)}
+                onReprint={(tx) => {
+                    setLastTransaction(tx);
+                    // Small delay to allow state update before print
+                    setTimeout(() => window.print(), 100);
+                }}
+            />
         </div>
     );
 }

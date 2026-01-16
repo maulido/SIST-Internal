@@ -4,12 +4,26 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/Drawer';
+import { Modal } from '@/components/Modal';
 import { Pagination } from '@/components/Pagination';
 import { usePagination } from '@/hooks/usePagination';
 
 export default function ProductsPage() {
     const [products, setProducts] = useState<any[]>([]);
-    const { token, isLoading } = useAuth();
+    const { token, isLoading, user } = useAuth();
+
+    // Suppliers & History State
+    const [suppliers, setSuppliers] = useState<any[]>([]);
+    const [stockHistory, setStockHistory] = useState<any[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+
+    useEffect(() => {
+        if (token) {
+            axios.get('http://localhost:3000/suppliers', { headers: { Authorization: `Bearer ${token}` } })
+                .then(res => setSuppliers(res.data))
+                .catch(err => console.error('Failed to fetch suppliers', err));
+        }
+    }, [token]);
 
     // Drawer States
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -38,6 +52,20 @@ export default function ProductsPage() {
             })
                 .then(res => setProducts(Array.isArray(res.data) ? res.data : []))
                 .catch(err => console.error(err));
+        }
+    };
+
+    const fetchHistory = async (productId: string) => {
+        setHistoryLoading(true);
+        try {
+            const res = await axios.get(`http://localhost:3000/products/${productId}/history`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setStockHistory(res.data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setHistoryLoading(false);
         }
     };
 
@@ -91,20 +119,173 @@ export default function ProductsPage() {
         setSelectedProduct(product);
         setDrawerMode('VIEW');
         setIsDrawerOpen(true);
+        fetchHistory(product.id);
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this product?')) return;
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [productToDelete, setProductToDelete] = useState<any>(null);
+
+    // Restock State
+
+    const [restockModalOpen, setRestockModalOpen] = useState(false);
+    const [productToRestock, setProductToRestock] = useState<any>(null);
+    const [restockQuantity, setRestockQuantity] = useState<number>(0);
+    const [restockSupplierId, setRestockSupplierId] = useState('');
+    const [restockCost, setRestockCost] = useState(0);
+    const [restockNote, setRestockNote] = useState('');
+
+    const handleDeleteClick = (product: any) => {
+        setProductToDelete(product);
+        setDeleteModalOpen(true);
+    };
+
+    const handleRestockClick = (product: any) => {
+        setProductToRestock(product);
+        setRestockQuantity(0);
+        setRestockSupplierId('');
+        setRestockCost(0);
+        setRestockNote('');
+        setRestockModalOpen(true);
+    };
+
+    const confirmRestock = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!productToRestock || restockQuantity <= 0) return;
+
         try {
-            await axios.delete(`http://localhost:3000/products/${id}`, {
+            await axios.post(`http://localhost:3000/products/${productToRestock.id}/stock`, {
+                quantity: restockQuantity,
+                supplierId: restockSupplierId || undefined,
+                cost: restockCost || undefined,
+                note: restockNote || undefined
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            alert(`Stock added successfully!`);
+            fetchProducts();
+            setRestockModalOpen(false);
+            setProductToRestock(null);
+        } catch (err: any) {
+            console.error(err);
+            alert('Failed to restock');
+        }
+    };
+
+    const confirmDelete = async () => {
+        if (!productToDelete) return;
+        try {
+            await axios.delete(`http://localhost:3000/products/${productToDelete.id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             alert('Product deleted successfully');
             fetchProducts();
+            setDeleteModalOpen(false);
+            setProductToDelete(null);
         } catch (err) {
             console.error(err);
             alert('Failed to delete product');
         }
+    };
+
+    const handleExport = () => {
+        if (products.length === 0) return alert('No products to export');
+
+        // CSV Header
+        const headers = ['Name', 'SKU', 'Price', 'Cost', 'Stock', 'Category', 'Type', 'Description'];
+        const csvContent = [
+            headers.join(','),
+            ...products.map(p => {
+                // Escape quotes and handle commas in fields
+                const escape = (str: any) => `"${String(str || '').replace(/"/g, '""')}"`;
+                return [
+                    escape(p.name),
+                    escape(p.sku),
+                    p.price,
+                    p.cost,
+                    p.stock,
+                    escape(p.category),
+                    p.type,
+                    escape(p.description)
+                ].join(',');
+            })
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `products_export_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                if (!text) return;
+
+                const lines = text.split('\n');
+                const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, '')); // Simple cleanup
+
+                const productsToImport = [];
+                // Start from 1 to skip header
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    // Basic CSV parsing (handles quoted strings poorly but sufficient for template)
+                    // Ideally use a library like 'papaparse' for robust parsing, but for now strict split:
+                    if (!line) continue;
+
+                    // Simple regex/split won't handle commas inside quotes well without library
+                    // For now assuming simple CSV without internal commas or using a strict template
+                    // A quick robust-ish regex for splitting CSV:
+                    const matches = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+                    // Fallback to simple split if not complex
+                    const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+
+                    if (values.length < 3) continue; // Skip malformed lines
+
+                    // Mapping based on assumed header order: Name, SKU, Price, Cost, Stock, Category, Type, Description
+                    // This relies on the Export format or strict template
+                    productsToImport.push({
+                        name: values[0] || 'Unknown Product',
+                        sku: values[1] || '',
+                        price: Number(values[2]) || 0,
+                        cost: Number(values[3]) || 0,
+                        stock: Number(values[4]) || 0,
+                        category: values[5] || 'General',
+                        type: (values[6] === 'SERVICE' || values[6] === 'GOODS') ? values[6] : 'GOODS',
+                        description: values[7] || ''
+                    });
+                }
+
+                if (productsToImport.length === 0) {
+                    alert('No valid products found in CSV');
+                    return;
+                }
+
+                if (confirm(`Ready to import ${productsToImport.length} products?`)) {
+                    await axios.post('http://localhost:3000/products/bulk', productsToImport, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    alert(`Successfully imported ${productsToImport.length} products!`);
+                    fetchProducts();
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Failed to import products. Check CSV format.');
+            } finally {
+                // Reset input
+                if (e.target) e.target.value = '';
+            }
+        };
+        reader.readAsText(file);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -161,6 +342,30 @@ export default function ProductsPage() {
                     </svg>
                     Add Product
                 </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleExport}
+                        className="flex items-center gap-2 bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--foreground)] px-4 py-2 rounded-lg font-medium hover:bg-[var(--card-border)] transition-colors"
+                        title="Export to CSV"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                        </svg>
+                        Export
+                    </button>
+                    <label className="flex items-center gap-2 bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--foreground)] px-4 py-2 rounded-lg font-medium hover:bg-[var(--card-border)] transition-colors cursor-pointer" title="Import from CSV">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" className="rotate-180 origin-center" />
+                        </svg>
+                        Import
+                        <input
+                            type="file"
+                            accept=".csv"
+                            className="hidden"
+                            onChange={handleImport}
+                        />
+                    </label>
+                </div>
             </div>
 
             {/* Search & Filter Bar */}
@@ -247,9 +452,14 @@ export default function ProductsPage() {
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
                                             </svg>
                                         </button>
-                                        <button onClick={() => handleDelete(p.id)} className="text-red-400 hover:text-red-500 transition-colors" title="Delete">
+                                        <button onClick={() => handleDeleteClick(p)} className="text-red-400 hover:text-red-500 transition-colors" title="Delete">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                            </svg>
+                                        </button>
+                                        <button onClick={() => handleRestockClick(p)} className="text-green-400 hover:text-green-500 transition-colors" title="Quick Restock">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
                                         </button>
                                     </td>
@@ -287,44 +497,111 @@ export default function ProductsPage() {
                 width="max-w-xl"
             >
                 {drawerMode === 'VIEW' ? (
-                    <div className="space-y-6">
-                        <div className="p-6 bg-gradient-to-br from-[var(--card-bg)] to-[var(--background)] rounded-xl border border-[var(--card-border)] text-center">
-                            <h3 className="text-2xl font-bold text-[var(--foreground)]">{selectedProduct?.name}</h3>
-                            <p className="text-[var(--primary)] text-lg font-medium mt-1">Rp {selectedProduct?.price.toLocaleString('id-ID')}</p>
-                            <span className="mt-2 inline-block px-3 py-1 bg-[var(--foreground)]/5 rounded-full text-sm text-gray-500">
-                                SKU: {selectedProduct?.sku || 'N/A'}
-                            </span>
+                    <div className="space-y-8">
+                        {/* Product Header Card */}
+                        <div className="flex gap-6 items-start">
+                            <div className="h-32 w-32 rounded-xl bg-[var(--background)] border border-[var(--card-border)] overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                {selectedProduct?.image ? (
+                                    <img src={selectedProduct.image} alt={selectedProduct.name} className="h-full w-full object-cover" />
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 text-gray-400">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                                    </svg>
+                                )}
+                            </div>
+                            <div className="flex-1">
+                                <span className="inline-block px-2 py-1 bg-[var(--foreground)]/5 rounded-full text-xs font-mono text-gray-500 mb-2">
+                                    {selectedProduct?.sku || 'NO SKU'}
+                                </span>
+                                <h3 className="text-2xl font-bold text-[var(--foreground)] leading-tight">{selectedProduct?.name}</h3>
+                                <p className="text-[var(--primary)] text-xl font-bold mt-2">Rp {selectedProduct?.price.toLocaleString('id-ID')}</p>
+                                <div className="flex gap-4 mt-4">
+                                    <div className="text-center px-4 py-2 bg-[var(--background)] rounded-lg border border-[var(--card-border)]">
+                                        <div className="text-xs text-gray-500 uppercase">Stock</div>
+                                        <div className="font-bold text-[var(--foreground)]">{selectedProduct?.stock}</div>
+                                    </div>
+                                    <div className="text-center px-4 py-2 bg-[var(--background)] rounded-lg border border-[var(--card-border)]">
+                                        <div className="text-xs text-gray-500 uppercase">Cost</div>
+                                        <div className="font-bold text-[var(--foreground)]">Rp {selectedProduct?.cost.toLocaleString('id-ID')}</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="p-4 rounded-lg border border-[var(--card-border)] bg-[var(--background)]">
-                                <label className="text-xs text-gray-500 uppercase tracking-wide">Stock Level</label>
-                                <p className="text-xl font-bold text-[var(--foreground)] mt-1">{selectedProduct?.stock}</p>
-                            </div>
-                            <div className="p-4 rounded-lg border border-[var(--card-border)] bg-[var(--background)]">
-                                <label className="text-xs text-gray-500 uppercase tracking-wide">Base Cost</label>
-                                <p className="text-xl font-bold text-[var(--foreground)] mt-1">Rp {selectedProduct?.cost.toLocaleString('id-ID')}</p>
-                            </div>
-                            <div className="p-4 rounded-lg border border-[var(--card-border)] bg-[var(--background)]">
-                                <label className="text-xs text-gray-500 uppercase tracking-wide">Category</label>
-                                <p className="text-lg font-medium text-[var(--foreground)] mt-1">{selectedProduct?.category}</p>
-                            </div>
-                            <div className="p-4 rounded-lg border border-[var(--card-border)] bg-[var(--background)]">
-                                <label className="text-xs text-gray-500 uppercase tracking-wide">Margin</label>
-                                <p className="text-lg font-medium text-green-500 mt-1">
-                                    {selectedProduct?.price > selectedProduct?.cost
-                                        ? `${Math.round(((selectedProduct.price - selectedProduct.cost) / selectedProduct.price) * 100)}%`
-                                        : '0%'}
-                                </p>
-                            </div>
-                        </div>
-
+                        {/* Description */}
                         {selectedProduct?.description && (
-                            <div>
-                                <h4 className="font-medium text-[var(--foreground)] mb-2">Description</h4>
+                            <div className="bg-[var(--background)]/50 p-4 rounded-xl border border-[var(--card-border)]">
+                                <h4 className="font-medium text-[var(--foreground)] mb-2 text-sm uppercase tracking-wide opacity-70">Description</h4>
                                 <p className="text-gray-500 text-sm leading-relaxed">{selectedProduct.description}</p>
                             </div>
                         )}
+
+                        {/* Stock History */}
+                        <div>
+                            <h4 className="font-bold text-[var(--foreground)] mb-4 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-[var(--primary)]">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Stock History
+                            </h4>
+                            <div className="rounded-xl border border-[var(--card-border)] bg-[var(--background)] overflow-hidden">
+                                {historyLoading ? (
+                                    <div className="p-8 text-center text-gray-500">Loading history...</div>
+                                ) : stockHistory.length === 0 ? (
+                                    <div className="p-8 text-center text-gray-500">No history found for this product.</div>
+                                ) : (
+                                    <div className="max-h-60 overflow-y-auto">
+                                        <table className="w-full text-sm">
+                                            <thead className="bg-[var(--foreground)]/5 sticky top-0">
+                                                <tr className="text-left text-xs font-semibold text-gray-500 uppercase">
+                                                    <th className="px-4 py-2">Date</th>
+                                                    <th className="px-4 py-2">User</th>
+                                                    <th className="px-4 py-2">Type</th>
+                                                    <th className="px-4 py-2 text-right">Change</th>
+                                                    <th className="px-4 py-2 text-right">Final</th>
+                                                    <th className="px-4 py-2">Details</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-[var(--card-border)]">
+                                                {stockHistory.map((log: any) => (
+                                                    <tr key={log.id} className="hover:bg-[var(--foreground)]/5 transition-colors">
+                                                        <td className="px-4 py-2 text-gray-500 whitespace-nowrap">
+                                                            {new Date(log.createdAt).toLocaleDateString()} <span className="text-xs opacity-70">{new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                        </td>
+                                                        <td className="px-4 py-2 text-sm text-[var(--foreground)]">
+                                                            {log.user?.name || log.user?.email || <span className="text-gray-400">-</span>}
+                                                        </td>
+                                                        <td className="px-4 py-2 font-medium">
+                                                            <span className={`px-2 py-0.5 rounded-full text-xs ${log.type === 'RESTOCK' ? 'bg-green-100 text-green-800' :
+                                                                log.type === 'SALE' ? 'bg-blue-100 text-blue-800' :
+                                                                    'bg-gray-100 text-gray-800'
+                                                                }`}>{log.type}</span>
+                                                        </td>
+                                                        <td className={`px-4 py-2 text-right font-mono font-bold ${log.changeAmount > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                            {log.changeAmount > 0 ? '+' : ''}{log.changeAmount}
+                                                        </td>
+                                                        <td className="px-4 py-2 text-right font-mono text-[var(--foreground)]">
+                                                            {log.finalStock}
+                                                        </td>
+                                                        <td className="px-4 py-2 text-gray-500 text-xs">
+                                                            {log.supplier && (
+                                                                <div className="flex items-center gap-1">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+                                                                    </svg>
+                                                                    {log.supplier.name}
+                                                                </div>
+                                                            )}
+                                                            {log.note && <div className="italic truncate max-w-[150px]" title={log.note}>{log.note}</div>}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-6">
@@ -472,6 +749,119 @@ export default function ProductsPage() {
                     </form>
                 )}
             </Drawer>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                isOpen={deleteModalOpen}
+                onClose={() => setDeleteModalOpen(false)}
+                title="Delete Product"
+            >
+                <div className="space-y-4">
+                    <p className="text-[var(--foreground)]">
+                        Are you sure you want to delete <span className="font-bold">{productToDelete?.name}</span>?
+                        <br />
+                        <span className="text-sm text-gray-500">This action cannot be undone.</span>
+                    </p>
+                    <div className="flex justify-end gap-3 pt-4">
+                        <button
+                            onClick={() => setDeleteModalOpen(false)}
+                            className="px-4 py-2 rounded-lg border border-[var(--card-border)] text-[var(--foreground)] hover:bg-[var(--foreground)]/5 transition-colors font-medium"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={confirmDelete}
+                            className="px-4 py-2 rounded-lg bg-red-500 text-white font-bold hover:bg-red-600 transition-colors shadow-red-500/30 shadow-lg"
+                        >
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Quick Restock Modal */}
+            <Modal
+                isOpen={restockModalOpen}
+                onClose={() => setRestockModalOpen(false)}
+                title="Quick Restock"
+            >
+                <form onSubmit={confirmRestock} className="space-y-4">
+                    <div className="space-y-2">
+                        <p className="text-[var(--foreground)]">
+                            Adding stock for <span className="font-bold">{productToRestock?.name}</span>
+                        </p>
+                        <p className="text-sm text-gray-500">
+                            Current Stock: <span className="font-mono">{productToRestock?.stock}</span>
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Quantity to Add</label>
+                        <input
+                            type="number"
+                            className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm"
+                            value={restockQuantity}
+                            onChange={e => setRestockQuantity(Number(e.target.value))}
+                            autoFocus
+                            min="1"
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Supplier (Optional)</label>
+                        <select
+                            className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm"
+                            value={restockSupplierId}
+                            onChange={e => setRestockSupplierId(e.target.value)}
+                        >
+                            <option value="">-- Select Supplier --</option>
+                            {suppliers.map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Cost Per Unit (Optional)</label>
+                        <input
+                            type="number"
+                            className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm"
+                            value={restockCost}
+                            onChange={e => setRestockCost(Number(e.target.value))}
+                            placeholder="Leave empty to use base cost"
+                            min="0"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Note (Optional)</label>
+                        <textarea
+                            className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm"
+                            value={restockNote}
+                            onChange={e => setRestockNote(e.target.value)}
+                            rows={2}
+                            placeholder="e.g. Purchase Order #123"
+                        />
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4">
+                        <button
+                            type="button"
+                            onClick={() => setRestockModalOpen(false)}
+                            className="px-4 py-2 rounded-lg border border-[var(--card-border)] text-[var(--foreground)] hover:bg-[var(--foreground)]/5 transition-colors font-medium"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="px-4 py-2 rounded-lg bg-green-500 text-white font-bold hover:bg-green-600 transition-colors shadow-green-500/30 shadow-lg"
+                        >
+                            Add Stock
+                        </button>
+                    </div>
+                </form>
+            </Modal>
         </div >
     );
 }

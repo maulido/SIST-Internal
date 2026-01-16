@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -13,13 +13,13 @@ export class TransactionsController {
     }
 
     @Post('sale')
-    createSale(@Body() dto: any) {
-        return this.transactionsService.createSale(dto);
+    createSale(@Body() dto: any, @Request() req: any) {
+        return this.transactionsService.createSale(dto, req.user?.userId || req.user?.sub);
     }
 
     @Post('expense')
-    createExpense(@Body() dto: any) {
-        return this.transactionsService.createExpense(dto);
+    createExpense(@Body() dto: any, @Request() req: any) {
+        return this.transactionsService.createExpense(dto, req.user?.userId);
     }
 
     @Get()

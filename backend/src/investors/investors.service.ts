@@ -1,12 +1,27 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class InvestorsService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private auditService: AuditService
+    ) { }
 
-    async create(data: any) {
-        return this.prisma.investor.create({ data });
+    async create(data: any, creatorId?: string) {
+        const investor = await this.prisma.investor.create({ data });
+
+        // Audit Log
+        await this.auditService.log(
+            creatorId || null,
+            'CREATE',
+            'Investor',
+            investor.id,
+            `Created investor profile for User ID ${data.userId}`
+        );
+
+        return investor;
     }
 
     async findAll() {
@@ -22,14 +37,25 @@ export class InvestorsService {
         });
     }
 
-    async update(id: string, data: any) {
-        return this.prisma.investor.update({
+    async update(id: string, data: any, modifierId?: string) {
+        const updated = await this.prisma.investor.update({
             where: { id },
             data,
         });
+
+        // Audit Log
+        await this.auditService.log(
+            modifierId || null,
+            'UPDATE',
+            'Investor',
+            id,
+            `Updated investor profile. Investment: ${updated.totalInvestment}`
+        );
+
+        return updated;
     }
 
-    async distributeDividends(totalAmount: number) {
+    async distributeDividends(totalAmount: number, userId?: string) {
         // 1. Get all investors with capital > 0
         const investors = await this.prisma.investor.findMany({
             where: { totalInvestment: { gt: 0 } },
@@ -56,9 +82,7 @@ export class InvestorsService {
                 const transaction = await tx.transaction.create({
                     data: {
                         type: 'DIVIDEND',
-                        amount: dividendAmount, // Dividend is money OUT of the company logic, or just a generic transaction?
-                        // Usually Dividend is negative in Cashflow for company, but positive for Investor.
-                        // Let's mark it as 'DIVIDEND' and handle sign in reports. 
+                        amount: dividendAmount,
                         description: `Dividend Distribution for ${investor.user.name} (${(sharePercentage * 100).toFixed(2)}%)`,
                         investorId: investor.id,
                         date: new Date(),
@@ -73,6 +97,15 @@ export class InvestorsService {
                 });
             }
         });
+
+        // Audit Log (Major Event)
+        await this.auditService.log(
+            userId || null,
+            'EXPORT', // Or CUSTOM action
+            'Finance',
+            'DIVIDEND',
+            `Distributed ${totalAmount} in dividends to ${investors.length} investors`
+        );
 
         return {
             totalDistributed: totalAmount,

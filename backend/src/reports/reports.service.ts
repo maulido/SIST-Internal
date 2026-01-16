@@ -178,6 +178,36 @@ export class ReportsService {
         });
     }
 
+    async getSalesByCategory() {
+        const sales = await (this.prisma as any).transactionItem.findMany({
+            include: { product: true },
+            where: { transaction: { type: 'SALE' } }
+        });
+
+        const categoryMap = new Map<string, number>();
+
+        for (const item of sales) {
+            const category = item.product?.category || 'Uncategorized';
+            const amount = Number(item.price) * item.quantity;
+            categoryMap.set(category, (categoryMap.get(category) || 0) + amount);
+        }
+
+        return Array.from(categoryMap.entries()).map(([name, value]) => ({ name, value }));
+    }
+
+    async getSalesByPaymentMethod() {
+        const sales = await (this.prisma as any).transaction.groupBy({
+            by: ['paymentMethod'],
+            where: { type: 'SALE' },
+            _sum: { amount: true }
+        });
+
+        return sales.map(s => ({
+            name: s.paymentMethod,
+            value: Number(s._sum.amount || 0)
+        }));
+    }
+
     async getDashboardSummary() {
         const pnl = await this.getProfitLoss();
         const bs = await this.getBalanceSheet();
@@ -247,6 +277,12 @@ export class ReportsService {
             console.log('Fetching revenueForecast...');
             const revenueForecast = await this.getRevenueForecast(); // existing
 
+            console.log('Fetching category stats...');
+            const salesByCategory = await this.getSalesByCategory();
+
+            console.log('Fetching payment stats...');
+            const salesByPaymentMethod = await this.getSalesByPaymentMethod();
+
             return {
                 totalRevenue: pnl.revenue, // Total All Time
                 revenueGrowth: growth.toFixed(1),
@@ -258,7 +294,9 @@ export class ReportsService {
                 recentTransactions,
                 topProducts,
                 lowStockAlerts,
-                revenueForecast
+                revenueForecast,
+                salesByCategory,
+                salesByPaymentMethod
             };
         } catch (error) {
             console.error('Dashboard Error:', error);
@@ -325,5 +363,86 @@ export class ReportsService {
             dailyGrowthRate: m,
             forecast
         };
+    }
+
+    async generateExcelReport(res: any) {
+        const Excel = require('exceljs');
+        const workbook = new Excel.Workbook();
+
+        // 1. Profit & Loss Sheet
+        const pnlSheet = workbook.addWorksheet('Profit & Loss');
+        const pnl = await this.getProfitLoss();
+
+        // Styles
+        pnlSheet.columns = [
+            { header: 'Item', key: 'item', width: 30 },
+            { header: 'Amount', key: 'amount', width: 20 }
+        ];
+
+        pnlSheet.addRow(['PROFIT & LOSS STATEMENT']);
+        pnlSheet.addRow([`Generated: ${new Date().toLocaleString()}`]);
+        pnlSheet.addRow([]);
+
+        // Revenue
+        pnlSheet.addRow(['REVENUE']);
+        pnlSheet.addRow(['Gross Sales', pnl.revenue]);
+        pnlSheet.addRow(['Cost of Goods Sold', -pnl.cogs]);
+        pnlSheet.addRow(['GROSS PROFIT', pnl.grossProfit]).font = { bold: true };
+        pnlSheet.addRow([]);
+
+        // Expenses
+        pnlSheet.addRow(['EXPENSES']);
+        Object.entries(pnl.expenseBreakdown).forEach(([cat, val]) => {
+            pnlSheet.addRow([cat, val]);
+        });
+        pnlSheet.addRow(['Total Expenses', pnl.totalExpenses]);
+        pnlSheet.addRow([]);
+
+        // Net Profit
+        const netRow = pnlSheet.addRow(['NET PROFIT', pnl.netProfit]);
+        netRow.font = { bold: true, size: 12 };
+        netRow.getCell(2).numFmt = '"Rp "#,##0.00;[Red]"-Rp "#,##0.00';
+
+        // 2. Balance Sheet
+        const bsSheet = workbook.addWorksheet('Balance Sheet');
+        const bs = await this.getBalanceSheet();
+
+        bsSheet.columns = [
+            { header: 'Category', key: 'category', width: 30 },
+            { header: 'Value', key: 'value', width: 20 }
+        ];
+
+        bsSheet.addRow(['BALANCE SHEET']);
+        bsSheet.addRow([`As of: ${new Date().toLocaleDateString()}`]);
+        bsSheet.addRow([]);
+
+        bsSheet.addRow(['ASSETS']);
+        bsSheet.addRow(['Cash on Hand', bs.assets.cash]);
+        bsSheet.addRow(['Inventory Value', bs.assets.inventory]);
+        bsSheet.addRow(['Fixed Assets', bs.assets.fixedAssets]);
+        bsSheet.addRow(['TOTAL ASSETS', bs.assets.total]).font = { bold: true };
+        bsSheet.addRow([]);
+
+        bsSheet.addRow(['LIABILITIES']);
+        bsSheet.addRow(['Total Liabilities', bs.liabilities.total]);
+        bsSheet.addRow([]);
+
+        bsSheet.addRow(['EQUITY']);
+        bsSheet.addRow(['Capital', bs.equity.capital]);
+        bsSheet.addRow(['Retained Earnings', bs.equity.retainedEarnings]);
+        bsSheet.addRow(['TOTAL EQUITY', bs.equity.total]).font = { bold: true };
+
+        // Formatting currency
+        [pnlSheet, bsSheet].forEach(sheet => {
+            sheet.getColumn(2).numFmt = '"Rp "#,##0.00;[Red]"-Rp "#,##0.00';
+            sheet.getRow(1).font = { bold: true, size: 14 };
+        });
+
+        // Write to Response
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=Financial_Report.xlsx');
+
+        await workbook.xlsx.write(res);
+        res.end();
     }
 }

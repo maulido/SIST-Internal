@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, UseGuards, Request } from '@nestjs/common';
 import { InvestorsService } from './investors.service';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -8,13 +8,13 @@ export class InvestorsController {
     constructor(private readonly investorsService: InvestorsService) { }
 
     @Post()
-    create(@Body() createInvestorDto: any) {
-        return this.investorsService.create(createInvestorDto);
+    create(@Body() createInvestorDto: any, @Request() req: any) {
+        return this.investorsService.create(createInvestorDto, req.user?.userId);
     }
 
     @Post('distribute')
-    distributeDividends(@Body() body: { amount: number }) {
-        return this.investorsService.distributeDividends(Number(body.amount));
+    distributeDividends(@Body() body: { amount: number }, @Request() req: any) {
+        return this.investorsService.distributeDividends(Number(body.amount), req.user?.userId);
     }
 
     @Get()
@@ -28,7 +28,7 @@ export class InvestorsController {
     }
 
     @Put(':id')
-    update(@Param('id') id: string, @Body() updateInvestorDto: any) {
-        return this.investorsService.update(id, updateInvestorDto);
+    update(@Param('id') id: string, @Body() updateInvestorDto: any, @Request() req: any) {
+        return this.investorsService.update(id, updateInvestorDto, req.user?.userId);
     }
 }

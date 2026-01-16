@@ -1,9 +1,13 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, UseGuards, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ReportsService } from './reports.service';
 import { AuthGuard } from '@nestjs/passport';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 
 @Controller('reports')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles('OWNER', 'INVESTOR') // Investors can also see reports
 export class ReportsController {
     constructor(private readonly reportsService: ReportsService) { }
 
@@ -30,5 +34,10 @@ export class ReportsController {
     @Get('forecast')
     getForecast() {
         return this.reportsService.getRevenueForecast();
+    }
+
+    @Get('export')
+    async exportReport(@Res() res: Response) {
+        return this.reportsService.generateExcelReport(res);
     }
 }
