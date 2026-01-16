@@ -3,29 +3,23 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = "postgresql://postgres:postgres@localhost:5432/sist_db?schema=public"
+  provider = "sqlite"
+  url      = "file:D:/Apps/SIST/backend/dev.db"
 }
 
-enum Role {
-  OWNER
-  INVESTOR
-  ADMIN_OPERASIONAL
-  KASIR
-  AKUNTAN
-}
+// Enums removed for SQLite compatibility, using String instead
 
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   password  String
   name      String?
-  role      Role     @default(KASIR)
+  role      String   @default("KASIR") // OWNER, INVESTOR, ADMIN_OPERASIONAL, KASIR, AKUNTAN
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   investorProfile Investor?
-  transactions    Transaction[] // Transactions created by this user
+  transactions    Transaction[]
 }
 
 model Investor {
@@ -33,36 +27,20 @@ model Investor {
   user            User     @relation(fields: [userId], references: [id])
   userId          String   @unique
   totalInvestment Decimal  @default(0)
-  sharesParam     Decimal  @default(0) // Percentage or share unit
+  sharesParam     Decimal  @default(0)
   joinedAt        DateTime @default(now())
   
   capitalHistory  Transaction[]
 }
 
-enum TransactionType {
-  SALE
-  EXPENSE
-  CAPITAL_IN
-  CAPITAL_OUT
-  DIVIDEND
-}
-
-enum PaymentMethod {
-  CASH
-  QRIS
-  TRANSFER
-  EWALLET
-}
-
 model Transaction {
   id            String          @id @default(uuid())
-  type          TransactionType
+  type          String          // SALE, EXPENSE, CAPITAL_IN, CAPITAL_OUT, DIVIDEND
   amount        Decimal
   date          DateTime        @default(now())
   description   String?
-  paymentMethod PaymentMethod?
+  paymentMethod String?         // CASH, QRIS, TRANSFER, EWALLET
   
-  // Relations
   creator       User?           @relation(fields: [creatorId], references: [id])
   creatorId     String?
 
@@ -80,7 +58,7 @@ model Product {
   name        String
   sku         String?  @unique
   price       Decimal
-  cost        Decimal? // HPP
+  cost        Decimal?
   stock       Int      @default(0)
   category    String?
   
@@ -106,11 +84,11 @@ model TransactionItem {
 model Asset {
   id            String   @id @default(uuid())
   name          String
-  category      String   // Fixed, Moving, Equipment
+  category      String
   purchaseDate  DateTime
   purchasePrice Decimal
   currentValue  Decimal
-  usefulLife    Int?     // In months
+  usefulLife    Int?
   location      String?
   
   createdAt     DateTime @default(now())

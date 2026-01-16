@@ -8,6 +8,8 @@ import { useRouter } from 'next/navigation';
 export default function SalesPage() {
     const [products, setProducts] = useState<any[]>([]);
     const [cart, setCart] = useState<any[]>([]);
+    const [paymentMethod, setPaymentMethod] = useState('CASH');
+    const [isProcessing, setIsProcessing] = useState(false);
     const { token } = useAuth();
     const router = useRouter();
 
@@ -37,10 +39,17 @@ export default function SalesPage() {
     const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
     const handleCheckout = async () => {
+        setIsProcessing(true);
+
+        // Mock Payment Gateway Delay
+        if (paymentMethod !== 'CASH') {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
         try {
             await axios.post('http://localhost:3000/transactions/sale', {
                 items: cart,
-                paymentMethod: 'CASH', // default for now
+                paymentMethod: paymentMethod,
                 taxRate: 11, // PPN 11%
                 adminFee: 0
             }, {
@@ -52,6 +61,8 @@ export default function SalesPage() {
         } catch (err) {
             console.error(err);
             alert('Failed to record sale');
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -106,11 +117,30 @@ export default function SalesPage() {
                         <span>Rp {total * 1.11}</span>
                     </div>
 
+                    <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+                        <select
+                            value={paymentMethod}
+                            onChange={(e) => setPaymentMethod(e.target.value)}
+                            className="mt-1 block w-full rounded-md border border-gray-300 p-2 text-indigo-700"
+                        >
+                            <option value="CASH">Cash</option>
+                            <option value="QRIS">QRIS (Mock)</option>
+                            <option value="TRANSFER">Bank Transfer</option>
+                            <option value="EWALLET">E-Wallet</option>
+                        </select>
+                    </div>
+
                     <button
                         onClick={handleCheckout}
-                        disabled={cart.length === 0}
-                        className="mt-4 w-full rounded bg-indigo-600 py-3 text-white font-bold hover:bg-indigo-700 disabled:opacity-50">
-                        Checkout
+                        disabled={cart.length === 0 || isProcessing}
+                        className="mt-4 w-full rounded bg-indigo-600 py-3 text-white font-bold hover:bg-indigo-700 disabled:opacity-50 flex justify-center items-center"
+                    >
+                        {isProcessing ? (
+                            <span>Processing Payment...</span>
+                        ) : (
+                            <span>Checkout</span>
+                        )}
                     </button>
                 </div>
             </div>
