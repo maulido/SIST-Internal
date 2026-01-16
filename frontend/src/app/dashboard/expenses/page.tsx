@@ -66,7 +66,7 @@ export default function ExpensesPage() {
         try {
             await axios.post('http://localhost:3000/transactions/expense', {
                 ...formData,
-                amount: Number(formData.amount) * (formData.amount > 0 ? 1 : -1) // Ensure positive, backend logic handles sign usually? No, expense usually 400. 
+                amount: Number(formData.amount) * (Number(formData.amount) > 0 ? 1 : -1) // Ensure positive, backend logic handles sign usually? No, expense usually 400. 
                 // Wait, in previous file I saw comment: "Service creates transaction with type EXPENSE."
                 // Usually for expenses we send positive amount and backend marks it as expense (-).
                 // Let's send positive Number.

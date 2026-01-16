@@ -12,6 +12,11 @@ export class InvestorsController {
         return this.investorsService.create(createInvestorDto);
     }
 
+    @Post('distribute')
+    distributeDividends(@Body() body: { amount: number }) {
+        return this.investorsService.distributeDividends(Number(body.amount));
+    }
+
     @Get()
     findAll() {
         return this.investorsService.findAll();

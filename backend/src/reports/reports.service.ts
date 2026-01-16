@@ -1,9 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AssetsService } from '../assets/assets.service';
 
 @Injectable()
 export class ReportsService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private assetsService: AssetsService
+    ) { }
+
+
+
 
     async getProfitLoss(startDate?: Date, endDate?: Date) {
         // 1. Revenue (Sales)
@@ -82,15 +89,8 @@ export class ReportsService {
         const inventoryValue = products.reduce((acc, p) => acc + (Number(p.stock) * Number(p.cost)), 0);
 
         const fixedAssets = await (this.prisma as any).asset.findMany();
-        // Calculate depreciated value for each asset
-        // For now, simpler sum of purchasePrice (MVP) or current value if we updated it.
-        // We'll compute rough current value.
-        let assetsValue = 0;
-        for (const asset of fixedAssets) {
-            // Re-use logic from AssetsService or just simple calc here
-            // Simple straight line: (Price / Life) * Age
-            assetsValue += Number(asset.purchasePrice); // Todo: subtract depreciation
-        }
+        // Use the AssetsService to calculate real book value (Purchase - Depreciation)
+        const assetsValue = await this.assetsService.getTotalRealAssetValue();
 
         const totalAssets = cash + inventoryValue + assetsValue;
 

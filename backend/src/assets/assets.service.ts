@@ -73,4 +73,21 @@ export class AssetsService {
             depreciation
         };
     }
+
+    async getTotalRealAssetValue() {
+        const assets = await this.findAll();
+        let totalValue = 0;
+        for (const asset of assets) {
+            const dep = this.calculateDepreciation(asset);
+            if (typeof dep === 'object') {
+                totalValue += dep.currentValue;
+            } else {
+                // if calculateDepreciation returns 0, use purchasePrice? or 0? 
+                // If invalid, fallback to 0.
+                // Actually logic says "if !usefulLife or !purchasePrice return 0". In that case value is 0 or purchasePrice?
+                // Let's assume 0 value if invalid data.
+            }
+        }
+        return totalValue;
+    }
 }

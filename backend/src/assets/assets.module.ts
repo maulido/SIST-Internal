@@ -4,6 +4,7 @@ import { AssetsController } from './assets.controller';
 
 @Module({
   providers: [AssetsService],
-  controllers: [AssetsController]
+  controllers: [AssetsController],
+  exports: [AssetsService]
 })
-export class AssetsModule {}
+export class AssetsModule { }

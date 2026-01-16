@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
+import axios from 'axios';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -15,9 +16,18 @@ export default function LoginPage() {
         e.preventDefault();
         setIsLoading(true);
         try {
-            await login(email, password);
+            const res = await axios.post('http://localhost:3000/auth/login', { email, password });
+            const { access_token } = res.data;
+
+            // Fetch user profile to ensure we have the User object for the context
+            const profileRes = await axios.get('http://localhost:3000/profile', {
+                headers: { Authorization: `Bearer ${access_token}` }
+            });
+
+            login(access_token, profileRes.data);
             router.push('/dashboard');
         } catch (error) {
+            console.error(error);
             alert('Login failed. Please check your credentials.');
         } finally {
             setIsLoading(false);

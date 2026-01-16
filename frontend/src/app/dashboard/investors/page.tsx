@@ -72,6 +72,38 @@ export default function InvestorsPage() {
         }
     };
 
+    const handleDistribute = async () => {
+        const amountStr = prompt('Enter the total profit amount to distribute (Rp):');
+        if (!amountStr) return;
+
+        const amount = Number(amountStr);
+        if (isNaN(amount) || amount <= 0) {
+            alert('Invalid amount');
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to distribute Rp ${amount.toLocaleString()} to all investors based on their capital share?`)) {
+            return;
+        }
+
+        try {
+            const res = await axios.post('http://localhost:3000/investors/distribute', { amount }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            const { totalDistributed, distributions } = res.data;
+            let msg = `Successfully distributed Rp ${totalDistributed.toLocaleString()}!\n\n`;
+            distributions.forEach((d: any) => {
+                msg += `- ${d.investorName}: Rp ${d.amount.toLocaleString()} (${d.shareOrOwnership})\n`;
+            });
+            alert(msg);
+            fetchData();
+        } catch (err: any) {
+            console.error(err);
+            alert('Distribution failed.');
+        }
+    };
+
     const totalManagedFund = investors.reduce((acc, curr) => acc + Number(curr.totalInvestment || 0), 0);
 
     return (
@@ -81,15 +113,26 @@ export default function InvestorsPage() {
                     <h3 className="text-3xl font-bold text-[var(--foreground)]">Investor Relations</h3>
                     <p className="text-gray-500">Manage capital and profit sharing</p>
                 </div>
-                <button
-                    onClick={handleOpenCreate}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 text-white rounded-xl font-bold shadow-lg shadow-violet-500/20 hover:bg-violet-700 transition-all"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    Add Investor
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={handleDistribute}
+                        className="flex items-center gap-2 px-5 py-2.5 border border-violet-500 text-violet-500 rounded-xl font-bold hover:bg-violet-500/10 transition-all"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Distribute Profit
+                    </button>
+                    <button
+                        onClick={handleOpenCreate}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 text-white rounded-xl font-bold shadow-lg shadow-violet-500/20 hover:bg-violet-700 transition-all"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        Add Investor
+                    </button>
+                </div>
             </div>
 
             {/* Fund Summary */}

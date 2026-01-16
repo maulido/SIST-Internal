@@ -47,6 +47,9 @@ model Transaction {
   investor      Investor?       @relation(fields: [investorId], references: [id])
   investorId    String?
 
+  supplier      Supplier?       @relation(fields: [supplierId], references: [id])
+  supplierId    String?
+
   items         TransactionItem[]
 
   createdAt     DateTime        @default(now())
@@ -91,6 +94,21 @@ model Asset {
   usefulLife    Int?
   location      String?
   
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Supplier {
+  id            String   @id @default(uuid())
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       String?
+  category      String?
+  
+  transactions  Transaction[]
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }

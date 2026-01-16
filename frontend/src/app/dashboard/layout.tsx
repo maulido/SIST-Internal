@@ -52,6 +52,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             name: 'Management',
             children: [
                 { name: 'Users', path: '/dashboard/users' },
+                { name: 'Suppliers', path: '/dashboard/suppliers' },
                 { name: 'Assets', path: '/dashboard/assets' },
                 { name: 'Investors', path: '/dashboard/investors' },
             ]
