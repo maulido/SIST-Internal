@@ -36,6 +36,21 @@ export default function SuppliersPage() {
         }
     };
 
+    // Filter States
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterCategory, setFilterCategory] = useState('All');
+
+    // Filter Logic
+    const filteredSuppliers = suppliers.filter(s => {
+        const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            s.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            s.contactPerson?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory = filterCategory === 'All' || s.category === filterCategory;
+        return matchesSearch && matchesCategory;
+    });
+
+    const categories = ['All', ...Array.from(new Set(suppliers.map(s => s.category || 'Raw Material')))];
+
     useEffect(() => {
         fetchSuppliers();
     }, [token, isLoading]);
@@ -55,10 +70,6 @@ export default function SuppliersPage() {
 
     const handleOpenView = (supplier: any) => {
         setSelectedSupplier(supplier);
-        // Pre-fill form for Edit (if we were doing edit) but for VIEW mode we just show details
-        // Let's implement EDIT as well or stick to the pattern? 
-        // Drawer supports any content. I will show details.
-
         setFormData({
             name: supplier.name,
             contactPerson: supplier.contactPerson || '',
@@ -68,9 +79,6 @@ export default function SuppliersPage() {
             category: supplier.category || 'Raw Material'
         });
         setDrawerMode('VIEW'); // VIEW actually behaves like "Details + Edit" usually?
-        // Let's make it VIEW only for now, with an "Edit" button inside?
-        // Or just allow Editing directly if it simplifies.
-        // Let's follow Asset pattern: VIEW shows details.
         setIsDrawerOpen(true);
     };
 
@@ -129,6 +137,31 @@ export default function SuppliersPage() {
                 </button>
             </div>
 
+            {/* Search & Filter Bar */}
+            <div className="flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                    </svg>
+                    <input
+                        type="text"
+                        placeholder="Search by Company, Contact Person, or Email..."
+                        className="w-full pl-10 pr-4 py-2 rounded-lg bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--foreground)] focus:outline-none focus:border-amber-500"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                <select
+                    className="px-4 py-2 rounded-lg bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--foreground)] focus:outline-none focus:border-amber-500 text-sm"
+                    value={filterCategory}
+                    onChange={(e) => setFilterCategory(e.target.value)}
+                >
+                    {categories.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                    ))}
+                </select>
+            </div>
+
             <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] backdrop-blur-sm overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-[var(--card-border)]">
@@ -141,7 +174,7 @@ export default function SuppliersPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--card-border)]">
-                            {suppliers.map((supplier) => (
+                            {filteredSuppliers.map((supplier) => (
                                 <tr key={supplier.id} className="hover:bg-[var(--foreground)]/5 transition-colors">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="text-sm font-medium text-[var(--foreground)]">{supplier.name}</div>

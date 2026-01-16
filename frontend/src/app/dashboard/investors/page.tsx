@@ -4,10 +4,13 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/Drawer';
+import { Pagination } from '@/components/Pagination';
+import { usePagination } from '@/hooks/usePagination';
 
 export default function InvestorsPage() {
     const [investors, setInvestors] = useState<any[]>([]);
     const [users, setUsers] = useState<any[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
     const { token, isLoading } = useAuth();
 
     // Drawer State
@@ -30,7 +33,7 @@ export default function InvestorsPage() {
                     axios.get('http://localhost:3000/users', { headers: { Authorization: `Bearer ${token}` } })
                 ]);
                 setInvestors(invRes.data);
-                setUsers(userRes.data); // Should filter for role? Let's show all for now or filter in render
+                setUsers(userRes.data);
             } catch (err) {
                 console.error(err);
             }
@@ -41,11 +44,25 @@ export default function InvestorsPage() {
         fetchData();
     }, [token, isLoading]);
 
+    // Filter Logic
+    const filteredInvestors = investors.filter(inv => {
+        const name = (inv.user?.name || '').toLowerCase();
+        const email = (inv.user?.email || '').toLowerCase();
+        const search = searchTerm.toLowerCase();
+        return name.includes(search) || email.includes(search);
+    });
+
+    const { currentItems, currentPage, paginate, totalItems } = usePagination(filteredInvestors, 10);
+
+    // ... handlers ...
+
     const handleOpenCreate = () => {
         setFormData({ userId: '', totalInvestment: '', sharesParam: '' });
         setDrawerMode('CREATE');
         setIsDrawerOpen(true);
     };
+
+    // ... (rest of handlers)
 
     const handleOpenView = (inv: any) => {
         setSelectedInvestor(inv);
@@ -135,9 +152,9 @@ export default function InvestorsPage() {
                 </div>
             </div>
 
-            {/* Fund Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6 backdrop-blur-sm shadow-sm relative overflow-hidden group">
+            {/* Total Fund & Search */}
+            <div className="flex flex-col md:flex-row gap-6">
+                <div className="flex-1 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6 backdrop-blur-sm shadow-sm relative overflow-hidden group">
                     <div className="absolute top-0 right-0 p-4 opacity-10">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 text-[var(--foreground)]">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
@@ -146,6 +163,20 @@ export default function InvestorsPage() {
                     <p className="text-sm font-medium text-gray-500 uppercase tracking-widest">Total Managed Capital</p>
                     <p className="mt-2 text-3xl font-bold text-[var(--foreground)]">Rp {totalManagedFund.toLocaleString('id-ID')}</p>
                 </div>
+            </div>
+
+            {/* Search Bar */}
+            <div className="relative">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+                <input
+                    type="text"
+                    placeholder="Search investors by Name or Email..."
+                    className="w-full pl-10 pr-4 py-2 rounded-lg bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--foreground)] focus:outline-none focus:border-violet-500"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
             </div>
 
             {/* Investor List */}
@@ -162,7 +193,7 @@ export default function InvestorsPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--card-border)]">
-                            {investors.map((inv) => (
+                            {currentItems.map((inv) => (
                                 <tr key={inv.id} className="hover:bg-[var(--foreground)]/5 transition-colors">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center gap-3">
@@ -204,6 +235,12 @@ export default function InvestorsPage() {
                         </tbody>
                     </table>
                 </div>
+                <Pagination
+                    currentPage={currentPage}
+                    totalItems={totalItems}
+                    itemsPerPage={10}
+                    onPageChange={paginate}
+                />
             </div>
 
             {/* Drawer */}

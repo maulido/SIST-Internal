@@ -50,20 +50,39 @@ model Transaction {
   supplier      Supplier?       @relation(fields: [supplierId], references: [id])
   supplierId    String?
 
+  // Debt Management
+  paymentStatus String          @default("PAID") // PAID, UNPAID (Hutang)
+  dueDate       DateTime?       // For UNPAID transactions
+
   items         TransactionItem[]
 
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 }
 
+model RecurringExpense {
+  id          String   @id @default(uuid())
+  name        String
+  amount      Decimal
+  category    String
+  frequency   String   @default("MONTHLY") // DAILY, WEEKLY, MONTHLY, YEARLY
+  nextDueDate DateTime
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model Product {
   id          String   @id @default(uuid())
   name        String
+  type        String   @default("GOODS") // GOODS, SERVICE
   sku         String?  @unique
   price       Decimal
   cost        Decimal?
   stock       Int      @default(0)
   category    String?
+  description String?
+  image       String?  // URL to product image
   
   transactionItems TransactionItem[]
 

@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/Drawer';
+import { Pagination } from '@/components/Pagination';
+import { usePagination } from '@/hooks/usePagination';
 
 export default function TransactionsPage() {
     const [transactions, setTransactions] = useState<any[]>([]);
-    const [filteredTransactions, setFilteredTransactions] = useState<any[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState('ALL');
     const { token, isLoading } = useAuth();
 
@@ -22,19 +24,20 @@ export default function TransactionsPage() {
             })
                 .then(res => {
                     setTransactions(res.data);
-                    setFilteredTransactions(res.data);
                 })
                 .catch(err => console.error(err));
         }
     }, [token, isLoading]);
 
-    useEffect(() => {
-        if (filterType === 'ALL') {
-            setFilteredTransactions(transactions);
-        } else {
-            setFilteredTransactions(transactions.filter(tx => tx.type === filterType));
-        }
-    }, [filterType, transactions]);
+    // Filter Logic
+    const filteredTransactions = transactions.filter(tx => {
+        const matchesSearch = (tx.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (tx.paymentMethod || '').toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesType = filterType === 'ALL' || tx.type === filterType;
+        return matchesSearch && matchesType;
+    });
+
+    const { currentItems, currentPage, paginate, totalItems } = usePagination(filteredTransactions, 10);
 
     const handleRowClick = (tx: any) => {
         setSelectedTx(tx);
@@ -89,22 +92,36 @@ export default function TransactionsPage() {
                 </button>
             </div>
 
-            {/* Filters */}
-            <div className="flex gap-2 overflow-x-auto pb-2">
-                {['ALL', 'SALE', 'EXPENSE', 'CAPITAL_IN', 'CAPITAL_OUT'].map(type => (
-                    <button
-                        key={type}
-                        onClick={() => setFilterType(type)}
-                        className={`
-                            px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap border
-                            ${filterType === type
-                                ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-md shadow-[var(--primary)]/20'
-                                : 'bg-[var(--card-bg)] text-gray-500 border-[var(--card-border)] hover:bg-[var(--foreground)]/5'}
-                        `}
-                    >
-                        {type === 'ALL' ? 'All Transactions' : type.replace('_', ' ')}
-                    </button>
-                ))}
+            {/* Filters Bar */}
+            <div className="flex flex-col md:flex-row gap-4 items-center">
+                <div className="relative flex-1 w-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                    </svg>
+                    <input
+                        type="text"
+                        placeholder="Search transactions..."
+                        className="w-full pl-10 pr-4 py-2 rounded-lg bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--foreground)] focus:outline-none focus:border-[var(--primary)]"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 w-full md:w-auto">
+                    {['ALL', 'SALE', 'EXPENSE', 'CAPITAL_IN', 'CAPITAL_OUT'].map(type => (
+                        <button
+                            key={type}
+                            onClick={() => setFilterType(type)}
+                            className={`
+                                px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap border
+                                ${filterType === type
+                                    ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-md shadow-[var(--primary)]/20'
+                                    : 'bg-[var(--card-bg)] text-gray-500 border-[var(--card-border)] hover:bg-[var(--foreground)]/5'}
+                            `}
+                        >
+                            {type === 'ALL' ? 'All' : type.replace('_', ' ')}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] backdrop-blur-sm overflow-hidden shadow-sm min-h-[400px]">
@@ -120,7 +137,7 @@ export default function TransactionsPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--card-border)]">
-                            {filteredTransactions.map((tx) => (
+                            {currentItems.map((tx) => (
                                 <tr
                                     key={tx.id}
                                     onClick={() => handleRowClick(tx)}
@@ -163,6 +180,12 @@ export default function TransactionsPage() {
                         </tbody>
                     </table>
                 </div>
+                <Pagination
+                    currentPage={currentPage}
+                    totalItems={totalItems}
+                    itemsPerPage={10}
+                    onPageChange={paginate}
+                />
             </div>
 
             {/* Transaction Detail Drawer */}

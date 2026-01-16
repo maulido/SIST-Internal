@@ -26,7 +26,11 @@
     "@nestjs/mapped-types": "*",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/schedule": "^6.1.0",
+    "@nestjs/serve-static": "^5.0.4",
     "@prisma/client": "5.22.0",
+    "@types/cron": "^2.0.1",
+    "@types/multer": "^2.0.0",
     "@types/passport-local": "^1.0.38",
     "bcrypt": "^6.0.0",
     "helmet": "^8.1.0",
@@ -81,5 +85,8 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   }
 }

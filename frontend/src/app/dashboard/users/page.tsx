@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/Drawer';
+import { Pagination } from '@/components/Pagination';
+import { usePagination } from '@/hooks/usePagination';
 
 export default function UsersPage() {
     const [users, setUsers] = useState<any[]>([]);
@@ -35,6 +37,8 @@ export default function UsersPage() {
     useEffect(() => {
         if (!isLoading) fetchUsers();
     }, [token, isLoading]);
+
+    const { currentItems, currentPage, paginate, totalItems } = usePagination(users, 10);
 
     const handleOpenCreate = () => {
         setFormData({ email: '', password: '', name: '', role: 'USER' });
@@ -119,7 +123,7 @@ export default function UsersPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--card-border)]">
-                            {users.map((u: any) => (
+                            {currentItems.map((u: any) => (
                                 <tr key={u.id} className="hover:bg-[var(--foreground)]/5 transition-colors">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
@@ -174,6 +178,12 @@ export default function UsersPage() {
                         </tbody>
                     </table>
                 </div>
+                <Pagination
+                    currentPage={currentPage}
+                    totalItems={totalItems}
+                    itemsPerPage={10}
+                    onPageChange={paginate}
+                />
             </div>
 
             {/* Reusable Drawer for Create / Edit / View */}

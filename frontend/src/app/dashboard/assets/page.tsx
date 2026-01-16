@@ -4,9 +4,12 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/Drawer';
+import { Pagination } from '@/components/Pagination';
+import { usePagination } from '@/hooks/usePagination';
 
 export default function AssetsPage() {
     const [assets, setAssets] = useState<any[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
     const { token, isLoading } = useAuth();
 
     // Drawer & Selection
@@ -35,6 +38,18 @@ export default function AssetsPage() {
     useEffect(() => {
         if (!isLoading) fetchAssets();
     }, [token, isLoading]);
+
+    // Filter Logic
+    const filteredAssets = assets.filter(asset => {
+        const name = (asset.name || '').toLowerCase();
+        const category = (asset.category || '').toLowerCase();
+        const search = searchTerm.toLowerCase();
+        return name.includes(search) || category.includes(search);
+    });
+
+    const { currentItems, currentPage, paginate, totalItems } = usePagination(filteredAssets, 10);
+
+    // ... handlers ...
 
     const handleOpenCreate = () => {
         setFormData({
@@ -128,6 +143,20 @@ export default function AssetsPage() {
                 </div>
             </div>
 
+            {/* Search Bar */}
+            <div className="relative">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+                <input
+                    type="text"
+                    placeholder="Search assets by Name or Category..."
+                    className="w-full pl-10 pr-4 py-2 rounded-lg bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--foreground)] focus:outline-none focus:border-sky-500"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+
 
             <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] backdrop-blur-sm overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
@@ -142,7 +171,7 @@ export default function AssetsPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--card-border)]">
-                            {assets.map((asset) => (
+                            {currentItems.map((asset) => (
                                 <tr key={asset.id} className="hover:bg-[var(--foreground)]/5 transition-colors">
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-[var(--foreground)]">
                                         {asset.name}
@@ -178,6 +207,12 @@ export default function AssetsPage() {
                         </tbody>
                     </table>
                 </div>
+                <Pagination
+                    currentPage={currentPage}
+                    totalItems={totalItems}
+                    itemsPerPage={10}
+                    onPageChange={paginate}
+                />
             </div>
 
             {/* Asset Drawer */}

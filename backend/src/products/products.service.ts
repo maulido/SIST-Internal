@@ -9,6 +9,11 @@ export class ProductsService {
     constructor(private prisma: PrismaService) { }
 
     async create(data: ProductCreateInput) {
+        if (!data.sku) {
+            // Auto-generate SKU: SKU-TIMESTAMP-RANDOM
+            const uniqueId = Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 5).toUpperCase();
+            data.sku = `SKU-${uniqueId}`;
+        }
         return (this.prisma as any).product.create({ data });
     }
 

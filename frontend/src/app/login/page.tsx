@@ -20,7 +20,7 @@ export default function LoginPage() {
             const { access_token } = res.data;
 
             // Fetch user profile to ensure we have the User object for the context
-            const profileRes = await axios.get('http://localhost:3000/profile', {
+            const profileRes = await axios.get('http://localhost:3000/auth/profile', {
                 headers: { Authorization: `Bearer ${access_token}` }
             });
 
