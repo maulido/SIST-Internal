@@ -161,4 +161,61 @@ export class ReportsService {
             totalEquity: bs.equity.total
         };
     }
+
+    async getRevenueForecast(daysToPredict: number = 30) {
+        // Simple Linear Regression
+        const sales = await (this.prisma as any).transaction.findMany({
+            where: { type: 'SALE' },
+            orderBy: { date: 'asc' }
+        });
+
+        if (sales.length < 2) {
+            return { error: "Not enough data to forecast" };
+        }
+
+        // Group by day 
+        const dailySales = new Map<string, number>();
+        sales.forEach(tx => {
+            const day = new Date(tx.date).toISOString().split('T')[0];
+            dailySales.set(day, (dailySales.get(day) || 0) + Number(tx.amount));
+        });
+
+        const sortedDays = Array.from(dailySales.keys()).sort();
+        const y = sortedDays.map(day => dailySales.get(day)!);
+        const x = sortedDays.map((_, i) => i); // 0, 1, 2...
+
+        // Calculate slope (m) and intercept (b)
+        // y = mx + b
+        const n = x.length;
+        const sumX = x.reduce((a, b) => a + b, 0);
+        const sumY = y.reduce((a, b) => a + b, 0);
+        const sumXY = x.reduce((a, b, i) => a + b * y[i], 0);
+        const sumXX = x.reduce((a, b) => a + b * b, 0);
+
+        const m = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+        const b = (sumY - m * sumX) / n;
+
+        // Predict
+        const forecast: { date: string, amount: number }[] = [];
+        const lastDate = new Date(sortedDays[sortedDays.length - 1]);
+
+        for (let i = 1; i <= daysToPredict; i++) {
+            const nextX = x.length - 1 + i;
+            const predictedAmount = m * nextX + b;
+
+            const nextDate = new Date(lastDate);
+            nextDate.setDate(nextDate.getDate() + i);
+
+            forecast.push({
+                date: nextDate.toISOString().split('T')[0],
+                amount: Math.max(0, predictedAmount) // No negative revenue
+            });
+        }
+
+        return {
+            trend: m > 0 ? 'Upward' : 'Downward',
+            dailyGrowthRate: m,
+            forecast
+        };
+    }
 }

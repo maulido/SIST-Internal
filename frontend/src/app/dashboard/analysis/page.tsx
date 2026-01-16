@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+import { useAuth } from '@/context/AuthContext';
 
 export default function AnalysisPage() {
     const [fixedCost, setFixedCost] = useState(0);
@@ -67,6 +69,55 @@ export default function AnalysisPage() {
                     </div>
                 )}
             </div>
+
+            <div className="mt-8 rounded-lg bg-white p-6 shadow">
+                <h4 className="text-lg font-bold text-gray-700 mb-4">Revenue Forecast (30 Days)</h4>
+                <RevenueForecast />
+            </div>
+
         </div>
     );
+}
+
+function RevenueForecast() {
+    const [data, setData] = useState<any>(null);
+    const { token } = useAuth(); // Need to move useAuth to top component or pass token?
+    // Logic inside component for simplicity
+
+    useEffect(() => {
+        if (token) {
+            axios.get('http://localhost:3000/reports/forecast', { headers: { Authorization: `Bearer ${token}` } })
+                .then(res => setData(res.data)).catch(console.error);
+        }
+    }, [token]);
+
+    if (!data) return <div>Loading forecast...</div>;
+    if (data.error) return <div className="text-yellow-600">{data.error}</div>;
+
+    return (
+        <div>
+            <div className={`text-lg font-semibold ${data.dailyGrowthRate > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                Trend: {data.trend} (Approx. {Math.round(data.dailyGrowthRate)} growth/day)
+            </div>
+
+            <div className="mt-4 overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead>
+                        <tr>
+                            <th className="px-4 py-2 text-left">Date</th>
+                            <th className="px-4 py-2 text-left">Predicted Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {data.forecast.map((f: any) => (
+                            <tr key={f.date}>
+                                <td className="px-4 py-2">{f.date}</td>
+                                <td className="px-4 py-2 font-medium">Rp {Math.round(f.amount).toLocaleString()}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    )
 }

@@ -26,4 +26,9 @@ export class ReportsController {
     getDashboard() {
         return this.reportsService.getDashboardSummary();
     }
+
+    @Get('forecast')
+    getForecast() {
+        return this.reportsService.getRevenueForecast();
+    }
 }
