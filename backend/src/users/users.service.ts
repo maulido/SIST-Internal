@@ -34,6 +34,10 @@ export class UsersService {
         });
     }
 
+    async findAll() {
+        return (this.prisma as any).user.findMany();
+    }
+
     async findById(id: string): Promise<User | null> {
         return (this.prisma as any).user.findUnique({
             where: { id },

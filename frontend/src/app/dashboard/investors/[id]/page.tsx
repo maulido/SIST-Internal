@@ -73,6 +73,33 @@ export default function InvestorDetailPage() {
                     <div className="p-4 text-center text-gray-500">No transactions recorded.</div>
                 )}
             </div>
+
+            <div className="mt-8 flex gap-4">
+                <button onClick={() => requestCapital('CAPITAL_IN')} className="rounded bg-green-600 px-6 py-2 text-white hover:bg-green-700 font-bold">
+                    Record Investment (+)
+                </button>
+                <button onClick={() => requestCapital('CAPITAL_OUT')} className="rounded bg-red-600 px-6 py-2 text-white hover:bg-red-700 font-bold">
+                    Record Dividend/Withdrawal (-)
+                </button>
+            </div>
         </div>
     );
+
+    function requestCapital(type: 'CAPITAL_IN' | 'CAPITAL_OUT') {
+        const amount = prompt(`Enter Amount for ${type}:`);
+        if (amount) {
+            axios.post('http://localhost:3000/transactions', {
+                type,
+                amount: Number(amount),
+                paymentMethod: 'TRANSFER',
+                investorId: id,
+                description: `Manual ${type} recording`
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            }).then(() => {
+                alert('Transaction recorded');
+                window.location.reload();
+            }).catch(console.error);
+        }
+    }
 }
