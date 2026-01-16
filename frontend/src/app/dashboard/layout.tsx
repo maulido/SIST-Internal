@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
@@ -14,7 +14,7 @@ type MenuItem = {
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-    const { user, logout } = useAuth();
+    const { user, token, isLoading, logout } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -23,10 +23,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         'Management': true
     });
 
+    useEffect(() => {
+        if (!isLoading && !token) {
+            router.push('/login');
+        }
+    }, [isLoading, token, router]);
+
     const handleLogout = () => {
         logout();
         router.push('/login');
     };
+
+    if (isLoading) {
+        return (
+            <div className="flex h-screen items-center justify-center bg-[var(--background)]">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary)]"></div>
+            </div>
+        );
+    }
+
+    if (!token) return null; // Prevent flash of unauthenticated content
 
     const toggleSubMenu = (name: string) => {
         setOpenSubMenus(prev => ({ ...prev, [name]: !prev[name] }));

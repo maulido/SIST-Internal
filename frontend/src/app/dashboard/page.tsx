@@ -12,12 +12,18 @@ export default function DashboardPage() {
 
     useEffect(() => {
         if (token) {
-            axios.get('http://localhost:3000/reports/dashboard', { headers: { Authorization: `Bearer ${token}` } })
-                .then(res => setStats(res.data))
+            console.log('Fetching dashboard stats...');
+            axios.get('http://127.0.0.1:3000/reports/dashboard', { headers: { Authorization: `Bearer ${token}` } })
+                .then(res => {
+                    console.log('Stats fetched:', res.data);
+                    setStats(res.data);
+                })
                 .catch(err => {
-                    console.error(err);
+                    console.error('Fetch error:', err);
                     setError(err.response?.data?.message || err.message || 'Failed to fetch data');
                 });
+        } else {
+            console.log('No token available yet');
         }
     }, [token]);
 

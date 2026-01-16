@@ -24,14 +24,15 @@ export class ReportsService {
 
         // 2. COGS (Cost of Goods Sold)
         let cogs = 0;
+        // Pre-fetch all products to avoid N+1 queries in the loop
+        const allProducts = await (this.prisma as any).product.findMany();
+        const productMap = new Map(allProducts.map(p => [p.id, p]));
+
         for (const sale of sales) {
             if (sale.items) {
                 for (const item of sale.items) {
-                    // We ideally store costAtTime in TransactionItem. For now fetch current cost or assume item has it.
-                    // Simplification: We blindly take product cost from DB (risky if cost changes).
-                    // Better: TransactionItem should have 'cost' field. 
-                    // MVP: Fetch product cost.
-                    const product = await (this.prisma as any).product.findUnique({ where: { id: item.productId } });
+                    // Use the map instead of separate DB calls
+                    const product = productMap.get(item.productId);
                     if (product) {
                         cogs += (Number(product.cost) * item.quantity);
                     }
