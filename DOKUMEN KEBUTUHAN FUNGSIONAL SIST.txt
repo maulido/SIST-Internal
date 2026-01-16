@@ -1,0 +1,532 @@
+# DOKUMEN KEBUTUHAN FUNGSIONAL SISTEM
+
+**Sistem Manajemen Usaha & Keuangan Terintegrasi**
+
+---
+
+## A. Gambaran Umum Sistem
+
+### A.1 Latar Belakang
+
+Sistem ini dirancang untuk membantu pemilik usaha dalam:
+
+* Mengelola operasional usaha
+* Mengelola keuangan usaha secara real-time
+* Mengelola modal investor
+* Memantau performa bisnis
+* Melakukan proyeksi keuntungan
+* Menghitung estimasi balik modal (Break Even Point)
+
+Pada tahap awal, sistem digunakan untuk:
+
+* Usaha warnet + mini cafe
+* Pendanaan dari investor
+* Pemakaian internal
+
+Namun arsitektur sistem dirancang agar:
+
+* Dapat digunakan untuk berbagai jenis usaha
+* Dapat dikembangkan menjadi platform SaaS multi-tenant
+
+---
+
+## B. Tujuan Sistem
+
+Sistem ini bertujuan untuk:
+
+1. Menyediakan pencatatan keuangan yang terstruktur
+2. Memberikan laporan keuangan secara real-time
+3. Mengelola hubungan antara pemilik usaha dan investor
+4. Menghitung keuntungan, kerugian, dan ROI
+5. Membantu pengambilan keputusan bisnis berbasis data
+6. Meminimalkan kesalahan pencatatan manual
+7. Menyediakan transparansi kepada investor
+
+---
+
+## C. Target Pengguna Sistem
+
+Sistem dirancang untuk digunakan oleh beberapa jenis pengguna:
+
+* Pemilik Usaha (Owner)
+* Investor
+* Admin Operasional
+* Kasir
+* Akuntan / Keuangan
+
+---
+
+# 1. Modul Manajemen Pengguna dan Akses
+
+### 1.1 Manajemen Autentikasi
+
+Sistem harus mendukung:
+
+* Login berbasis email & password
+* Autentikasi berbasis JWT
+* Manajemen sesi pengguna
+* Manajemen refresh token
+* Logout sistem
+
+---
+
+### 1.2 Role Management
+
+Sistem harus mendukung pengelolaan hak akses berbasis role:
+
+Role utama:
+
+1. Owner
+2. Admin Operasional
+3. Kasir
+4. Investor
+5. Akuntan (opsional)
+
+---
+
+### 1.3 Hak Akses Per Role
+
+#### Owner
+
+Memiliki akses penuh terhadap:
+
+* Semua data keuangan
+* Laporan lengkap
+* Manajemen investor
+* Konfigurasi sistem
+* Approval transaksi tertentu
+* Analisis dan proyeksi
+
+#### Investor
+
+Hanya dapat mengakses:
+
+* Dashboard investor
+* Laporan read-only
+* Nilai ROI
+* Progress modal
+* Perkiraan keuntungan
+
+#### Admin Operasional / Kasir
+
+Dapat melakukan:
+
+* Input penjualan
+* Input pembelian
+* Input biaya
+* Tidak dapat melihat data investor
+
+#### Akuntan
+
+* Mengelola laporan keuangan
+* Verifikasi transaksi
+* Koreksi pencatatan
+
+---
+
+### 1.4 Keamanan Akses
+
+Sistem wajib menyediakan:
+
+* Role Based Access Control
+* Pembatasan akses API
+* Audit log aktivitas
+* Pencatatan histori perubahan data
+
+---
+
+# 2. Modul Manajemen Modal Usaha
+
+Modul ini menjadi inti dari hubungan pemilik usaha dan investor.
+
+---
+
+### 2.1 Manajemen Data Investor
+
+Sistem harus dapat menyimpan data investor secara lengkap:
+
+* Identitas investor
+* Nilai investasi
+* Tanggal masuk modal
+* Jenis investasi
+* Persentase kepemilikan
+* Riwayat transaksi modal
+
+---
+
+### 2.2 Pengelolaan Modal
+
+Fitur yang harus tersedia:
+
+* Pencatatan setoran modal awal
+* Penambahan modal
+* Penarikan modal
+* Perubahan kepemilikan
+* Perhitungan otomatis proporsi saham/modal
+
+---
+
+### 2.3 Skema Bagi Hasil
+
+Sistem harus fleksibel mendukung:
+
+* Skema profit sharing
+* Skema dividen tetap
+* Skema proporsional modal
+* Skema custom per investor
+
+---
+
+# 3. Modul Manajemen Aset
+
+Modul ini mengelola seluruh aset fisik usaha.
+
+---
+
+### 3.1 Inventarisasi Aset
+
+Sistem harus dapat mencatat:
+
+* Aset tetap
+* Aset bergerak
+* Peralatan operasional
+
+Data yang dicatat:
+
+* Nama aset
+* Kategori
+* Harga beli
+* Tanggal beli
+* Nilai buku
+* Lokasi aset
+
+---
+
+### 3.2 Penyusutan Aset
+
+Sistem harus mampu:
+
+* Menghitung depresiasi
+* Mengelola umur ekonomis
+* Menghitung nilai sisa
+* Laporan aset
+
+---
+
+# 4. Modul Pembelian & Pengeluaran
+
+---
+
+### 4.1 Pencatatan Pembelian
+
+Sistem harus mendukung pencatatan:
+
+* Pembelian barang
+* Pembelian jasa
+* Biaya operasional
+* Biaya investasi
+
+---
+
+### 4.2 Klasifikasi Biaya
+
+Setiap pengeluaran dapat dikategorikan:
+
+* Biaya tetap
+* Biaya variabel
+* Biaya operasional
+* Biaya investasi
+
+---
+
+### 4.3 Manajemen Supplier
+
+Fitur:
+
+* Database supplier
+* Riwayat pembelian
+* Hutang usaha (opsional)
+
+---
+
+# 5. Modul Penjualan
+
+---
+
+### 5.1 Pengelolaan Produk & Layanan
+
+Sistem harus mendukung:
+
+* Manajemen produk
+* Manajemen jasa
+* Kategori produk
+* Harga jual
+* Promo & diskon
+
+---
+
+### 5.2 Transaksi Penjualan
+
+Fitur utama:
+
+* Input transaksi
+* Multi metode pembayaran
+* Struk transaksi
+* Riwayat penjualan
+
+---
+
+### 5.3 Metode Pembayaran
+
+Sistem mendukung:
+
+* Tunai
+* QRIS
+* E-wallet
+* Transfer bank
+
+---
+
+# 6. Modul Pengelolaan Biaya Tambahan
+
+Bagian ini sangat penting agar laporan benar-benar akurat.
+
+---
+
+## 6.1 Manajemen Pajak
+
+Sistem harus mendukung:
+
+* Pengaturan jenis pajak
+* Perhitungan pajak otomatis
+* Rekap pajak
+* Laporan pajak
+
+---
+
+## 6.2 Potongan Admin Transaksi
+
+Sistem wajib mendukung:
+
+* MDR QRIS
+* Potongan e-wallet
+* Biaya transfer
+* Biaya payment gateway
+
+Semua potongan otomatis terhitung sebagai pengurang pendapatan bersih.
+
+---
+
+## 6.3 Biaya Bank
+
+Meliputi:
+
+* Biaya admin rekening
+* Biaya transfer
+* Biaya layanan bank
+
+Dengan fitur:
+
+* Auto recurring expense
+* Reminder pembayaran
+
+---
+
+## 6.4 Biaya Operasional Rutin
+
+Sistem dapat mengelola:
+
+* Gaji
+* Listrik
+* Internet
+* Sewa
+* Maintenance
+
+Termasuk:
+
+* Jadwal pembayaran
+* Pengingat jatuh tempo
+
+---
+
+# 7. Modul Laporan Keuangan
+
+Ini merupakan inti sistem.
+
+---
+
+### 7.1 Laporan Laba Rugi
+
+Sistem harus dapat menampilkan:
+
+* Pendapatan kotor
+* Total biaya
+* Pajak
+* Potongan admin
+* Laba bersih
+
+---
+
+### 7.2 Laporan Arus Kas
+
+Menampilkan:
+
+* Cash in
+* Cash out
+* Saldo berjalan
+
+---
+
+### 7.3 Neraca Sederhana
+
+Menampilkan:
+
+* Aset
+* Modal
+* Kewajiban
+
+---
+
+# 8. Modul Analisis & Proyeksi
+
+---
+
+### 8.1 Break Even Point
+
+Sistem dapat menghitung:
+
+* Target penjualan
+* Estimasi balik modal
+* Waktu BEP
+
+---
+
+### 8.2 Forecasting
+
+Berdasarkan data historis, sistem dapat:
+
+* Memprediksi pendapatan
+* Memprediksi laba
+* Proyeksi 3 – 12 bulan
+
+---
+
+### 8.3 Simulasi Bisnis
+
+Sistem menyediakan:
+
+* Simulasi kenaikan biaya
+* Simulasi kenaikan penjualan
+* Simulasi investasi baru
+
+---
+
+# 9. Dashboard Real-Time
+
+---
+
+### 9.1 Dashboard Owner
+
+Menampilkan:
+
+* Statistik penjualan
+* Grafik keuangan
+* Laba rugi
+* Cashflow
+
+---
+
+### 9.2 Dashboard Investor
+
+Menampilkan:
+
+* Nilai investasi
+* ROI
+* Progress modal
+* Proyeksi keuntungan
+
+---
+
+# 10. Kesiapan Multi Usaha (SaaS Ready)
+
+Sistem dirancang agar mendukung:
+
+* Multi tenant
+* Multi cabang
+* Multi jenis usaha
+* Custom konfigurasi per tenant
+
+---
+
+# 11. Integrasi Sistem
+
+Sistem harus mendukung:
+
+* Integrasi payment gateway
+* Integrasi QRIS
+* Export PDF
+* Export Excel
+
+---
+
+# 12. Audit & Keamanan
+
+Fitur wajib:
+
+* Log aktivitas
+* Histori perubahan
+* Backup otomatis
+* Enkripsi data
+* Keamanan API
+
+---
+
+## D. Spesifikasi Teknis
+
+Arsitektur yang digunakan:
+* backend dan frontend terpisah
+* Backend: NestJS
+* Frontend: Next.js + Tailwind
+* Database: PostgreSQL
+* API: REST API
+* Auth: JWT
+* Reporting: PDF & Excel
+* Gunakan GIT
+
+---
+
+# E. Manfaat Sistem Secara Universal
+
+Walaupun dimulai dari:
+
+* Warnet + cafe
+
+Sistem ini nantinya dapat digunakan untuk:
+
+* Toko retail
+* Restoran
+* Jasa servis
+* Startup kecil
+* UMKM
+* Usaha franchise
+* Bisnis jasa lainnya
+
+Karena konsepnya bersifat:
+
+* Generik
+* Modular
+* Tidak terikat jenis usaha
+
+---
+
+## F. Kesimpulan Akhir
+
+Dengan spesifikasi ini, sistem akan mampu:
+
+* Menjadi pusat pengelolaan bisnis
+* Memberikan transparansi kepada investor
+* Menghasilkan laporan keuangan akurat
+* Membantu keputusan strategis
+* Tumbuh menjadi platform SaaS di masa depan
+
+---
