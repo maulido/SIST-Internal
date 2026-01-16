@@ -1,12 +1,12 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Patch, Delete } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthGuard } from '@nestjs/passport';
 
+@UseGuards(AuthGuard('jwt'))
 @Controller('users')
 export class UsersController {
     constructor(private readonly usersService: UsersService) { }
 
-    @UseGuards(AuthGuard('jwt'))
     @Post()
     create(@Body() createUserDto: any) {
         return this.usersService.create(createUserDto);
@@ -17,7 +17,6 @@ export class UsersController {
         return this.usersService.findAll();
     }
 
-    @UseGuards(AuthGuard('jwt'))
     @Get(':email')
     async findOne(@Param('email') email: string) {
         const user = await this.usersService.findOne(email);
@@ -26,5 +25,11 @@ export class UsersController {
             return result;
         }
         return null;
+    }
+
+    @Patch(':id')
+    update(@Param('id') id: string, @Body() updateData: any) {
+        // We need to implement update in service
+        return this.usersService.update(id, updateData);
     }
 }

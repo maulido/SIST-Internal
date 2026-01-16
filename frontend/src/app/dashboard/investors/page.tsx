@@ -3,56 +3,265 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
-import Link from 'next/link';
+import { Drawer } from '@/components/Drawer';
 
 export default function InvestorsPage() {
     const [investors, setInvestors] = useState<any[]>([]);
-    const { token } = useAuth();
+    const [users, setUsers] = useState<any[]>([]);
+    const { token, isLoading } = useAuth();
+
+    // Drawer State
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [drawerMode, setDrawerMode] = useState<'CREATE' | 'VIEW'>('CREATE');
+    const [selectedInvestor, setSelectedInvestor] = useState<any>(null);
+
+    // Form Data
+    const [formData, setFormData] = useState({
+        userId: '',
+        totalInvestment: '',
+        sharesParam: ''
+    });
+
+    const fetchData = async () => {
+        if (token && !isLoading) {
+            try {
+                const [invRes, userRes] = await Promise.all([
+                    axios.get('http://localhost:3000/investors', { headers: { Authorization: `Bearer ${token}` } }),
+                    axios.get('http://localhost:3000/users', { headers: { Authorization: `Bearer ${token}` } })
+                ]);
+                setInvestors(invRes.data);
+                setUsers(userRes.data); // Should filter for role? Let's show all for now or filter in render
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    };
 
     useEffect(() => {
-        if (token) {
-            axios.get('http://localhost:3000/investors', {
+        fetchData();
+    }, [token, isLoading]);
+
+    const handleOpenCreate = () => {
+        setFormData({ userId: '', totalInvestment: '', sharesParam: '' });
+        setDrawerMode('CREATE');
+        setIsDrawerOpen(true);
+    };
+
+    const handleOpenView = (inv: any) => {
+        setSelectedInvestor(inv);
+        setDrawerMode('VIEW');
+        setIsDrawerOpen(true);
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            await axios.post('http://localhost:3000/investors', {
+                ...formData,
+                totalInvestment: Number(formData.totalInvestment),
+                sharesParam: Number(formData.sharesParam)
+            }, {
                 headers: { Authorization: `Bearer ${token}` }
-            })
-                .then(res => setInvestors(res.data))
-                .catch(err => console.error(err));
+            });
+            fetchData();
+            setIsDrawerOpen(false);
+            alert('Investor added successfully!');
+        } catch (err: any) {
+            console.error(err);
+            alert(err.response?.data?.message || 'Failed to add investor');
         }
-    }, [token]);
+    };
+
+    const totalManagedFund = investors.reduce((acc, curr) => acc + Number(curr.totalInvestment || 0), 0);
 
     return (
-        <div>
-            <div className="flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-gray-800">Investors</h3>
-                <button className="rounded bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700">Add Investor</button>
+        <div className="space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h3 className="text-3xl font-bold text-[var(--foreground)]">Investor Relations</h3>
+                    <p className="text-gray-500">Manage capital and profit sharing</p>
+                </div>
+                <button
+                    onClick={handleOpenCreate}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 text-white rounded-xl font-bold shadow-lg shadow-violet-500/20 hover:bg-violet-700 transition-all"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    Add Investor
+                </button>
             </div>
 
-            <div className="mt-6 overflow-hidden rounded-lg bg-white shadow">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Name</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Total Investment</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Shares</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 bg-white">
-                        {investors.map((inv) => (
-                            <tr key={inv.id}>
-                                <td className="whitespace-nowrap px-6 py-4">
-                                    <div className="text-sm font-medium text-gray-900">{inv.user?.name || 'Unknown'}</div>
-                                    <div className="text-sm text-gray-500">{inv.user?.email}</div>
-                                </td>
-                                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">Rp {inv.totalInvestment}</td>
-                                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">{inv.sharesParam}%</td>
-                                <td className="whitespace-nowrap px-6 py-4 text-sm font-medium">
-                                    <Link href={`/dashboard/investors/${inv.id}`} className="text-indigo-600 hover:text-indigo-900">View</Link>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+            {/* Fund Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6 backdrop-blur-sm shadow-sm relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 text-[var(--foreground)]">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+                        </svg>
+                    </div>
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-widest">Total Managed Capital</p>
+                    <p className="mt-2 text-3xl font-bold text-[var(--foreground)]">Rp {totalManagedFund.toLocaleString('id-ID')}</p>
+                </div>
             </div>
+
+            {/* Investor List */}
+            <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] backdrop-blur-sm overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-[var(--card-border)]">
+                        <thead className="bg-[var(--foreground)]/5">
+                            <tr>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Investor Name</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Join Date</th>
+                                <th className="px-6 py-4 text-right text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Investment</th>
+                                <th className="px-6 py-4 text-right text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Share (%)</th>
+                                <th className="px-6 py-4 text-center text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--card-border)]">
+                            {investors.map((inv) => (
+                                <tr key={inv.id} className="hover:bg-[var(--foreground)]/5 transition-colors">
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-8 w-8 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-600 flex items-center justify-center font-bold text-xs">
+                                                {inv.user?.name?.charAt(0) || 'I'}
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-medium text-[var(--foreground)]">{inv.user?.name || 'Unknown'}</div>
+                                                <div className="text-xs text-gray-500">{inv.user?.email}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--foreground)]">
+                                        {new Date(inv.createdAt || Date.now()).toLocaleDateString()}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-[var(--foreground)] text-right font-mono">
+                                        Rp {Number(inv.totalInvestment).toLocaleString('id-ID')}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--foreground)] text-right">
+                                        {inv.sharesParam}%
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                        <button
+                                            onClick={() => handleOpenView(inv)}
+                                            className="text-violet-500 hover:text-violet-600 font-medium text-sm transition-colors"
+                                        >
+                                            View ROI
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {investors.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                                        No investors recorded.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Drawer */}
+            <Drawer
+                isOpen={isDrawerOpen}
+                onClose={() => setIsDrawerOpen(false)}
+                title={drawerMode === 'CREATE' ? 'Add Investor' : 'Investment Analysis'}
+            >
+                {drawerMode === 'VIEW' ? (
+                    <div className="space-y-6">
+                        {/* ROI Card */}
+                        <div className="p-6 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-lg relative overflow-hidden">
+                            <div className="relative z-10 text-center">
+                                <p className="text-indigo-200 text-xs uppercase tracking-widest mb-1">Projected ROI (Yearly)</p>
+                                <h3 className="text-4xl font-bold">
+                                    Rp {(Number(selectedInvestor?.totalInvestment) * 0.15).toLocaleString('id-ID', { maximumFractionDigits: 0 })}
+                                </h3>
+                                <p className="text-xs text-indigo-200 mt-2">Based on conservative 15% return rate</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <h4 className="font-bold text-[var(--foreground)]">Details</h4>
+                            <div className="flex justify-between py-3 border-b border-[var(--card-border)]">
+                                <span className="text-gray-500">Investor</span>
+                                <span className="font-medium text-[var(--foreground)]">{selectedInvestor?.user?.name}</span>
+                            </div>
+                            <div className="flex justify-between py-3 border-b border-[var(--card-border)]">
+                                <span className="text-gray-500">Principal Investment</span>
+                                <span className="font-medium text-[var(--foreground)]">Rp {Number(selectedInvestor?.totalInvestment).toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between py-3 border-b border-[var(--card-border)]">
+                                <span className="text-gray-500">Equity Share</span>
+                                <span className="font-medium text-[var(--foreground)]">{selectedInvestor?.sharesParam}%</span>
+                            </div>
+                        </div>
+
+                        <div className="p-4 rounded-lg bg-[var(--background)] border border-[var(--card-border)] text-sm text-gray-500">
+                            <p><strong>Note:</strong> ROI calculation is simulated based on current system parameters. Dividends are subject to monthly/yearly profit reporting.</p>
+                        </div>
+                    </div>
+                ) : (
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-[var(--foreground)]">Select User</label>
+                            <select
+                                className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-violet-500 focus:ring-1 focus:ring-violet-500 focus:outline-none transition-all appearance-none"
+                                value={formData.userId}
+                                onChange={e => setFormData({ ...formData, userId: e.target.value })}
+                                required
+                            >
+                                <option value="">-- Choose Account --</option>
+                                {users.map(u => (
+                                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                                ))}
+                            </select>
+                            <p className="text-xs text-gray-500">User must be registered first.</p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-[var(--foreground)]">Total Investment (Rp)</label>
+                            <input
+                                type="number"
+                                className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-violet-500 focus:ring-1 focus:ring-violet-500 focus:outline-none transition-all font-mono"
+                                value={formData.totalInvestment}
+                                onChange={e => setFormData({ ...formData, totalInvestment: e.target.value })}
+                                required
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-[var(--foreground)]">Ownership Share (%)</label>
+                            <input
+                                type="number"
+                                className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-violet-500 focus:ring-1 focus:ring-violet-500 focus:outline-none transition-all"
+                                value={formData.sharesParam}
+                                onChange={e => setFormData({ ...formData, sharesParam: e.target.value })}
+                                required
+                                step="0.1"
+                                max="100"
+                            />
+                        </div>
+
+                        <div className="pt-4 flex gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setIsDrawerOpen(false)}
+                                className="flex-1 px-4 py-3 rounded-lg border border-[var(--card-border)] text-[var(--foreground)] hover:bg-[var(--foreground)]/5 transition-colors font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="flex-1 px-4 py-3 rounded-lg bg-violet-600 text-white font-bold hover:bg-violet-700 transition-all shadow-lg shadow-violet-500/30"
+                            >
+                                Register Investment
+                            </button>
+                        </div>
+                    </form>
+                )}
+            </Drawer>
         </div>
     );
 }

@@ -1,26 +1,76 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Clean Business Light Palette */
+  --background: #f8fafc;
+  /* Slate 50 */
+  --foreground: #0f172a;
+  /* Slate 900 */
+
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+  /* Slate 200 */
+
+  --primary: #0284c7;
+  /* Sky 600 */
+  --primary-glow: rgba(2, 132, 199, 0.15);
+
+  --secondary: #6366f1;
+  /* Indigo 500 */
+  --accent: #ef4444;
+  /* Red 500 */
+
+  --glass: rgba(255, 255, 255, 0.9);
+  --glass-border: #e2e8f0;
+
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e2e8f0;
+}
+
+[data-theme='dark'] {
+  /* Balanced Futuristic Dark Palette */
+  --background: #09090b;
+  /* Zinc 950 */
+  --foreground: #fafafa;
+  /* Zinc 50 */
+
+  --card-bg: rgba(24, 24, 27, 0.6);
+  /* Zinc 950 with opacity */
+  --card-border: rgba(255, 255, 255, 0.08);
+
+  --primary: #22d3ee;
+  /* Cyan 400 */
+  --primary-glow: rgba(34, 211, 238, 0.3);
+
+  --secondary: #a78bfa;
+  /* Violet 400 */
+  --accent: #fb7185;
+  /* Rose 400 */
+
+  --glass: rgba(9, 9, 11, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+
+  --sidebar-bg: rgba(9, 9, 11, 0.4);
+  --sidebar-border: rgba(255, 255, 255, 0.05);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-card: var(--card-bg);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-border: var(--sidebar-border);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --backdrop-blur-xs: 2px;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  min-height: 100vh;
 }

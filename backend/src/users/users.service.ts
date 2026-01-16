@@ -43,4 +43,14 @@ export class UsersService {
             where: { id },
         });
     }
+
+    async update(id: string, data: any): Promise<User> {
+        if (data.password) {
+            data.password = await bcrypt.hash(data.password, 10);
+        }
+        return (this.prisma as any).user.update({
+            where: { id },
+            data,
+        });
+    }
 }

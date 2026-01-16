@@ -3,32 +3,41 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { Drawer } from '@/components/Drawer';
 
 export default function SalesPage() {
     const [products, setProducts] = useState<any[]>([]);
     const [cart, setCart] = useState<any[]>([]);
     const [paymentMethod, setPaymentMethod] = useState('CASH');
     const [isProcessing, setIsProcessing] = useState(false);
-    const { token } = useAuth();
-    const router = useRouter();
+    const { token, isLoading } = useAuth();
+
+    // Receipt Drawer State
+    const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+    const [lastTransaction, setLastTransaction] = useState<any>(null);
 
     useEffect(() => {
-        if (token) {
+        if (token && !isLoading) {
             axios.get('http://localhost:3000/products', {
                 headers: { Authorization: `Bearer ${token}` }
             })
                 .then(res => setProducts(res.data))
                 .catch(err => console.error(err));
         }
-    }, [token]);
+    }, [token, isLoading]);
 
     const addToCart = (product: any) => {
+        if (product.stock <= 0) return; // Prevent adding out of stock
         const existing = cart.find(item => item.productId === product.id);
         if (existing) {
+            // Check stock limit
+            if (existing.quantity >= product.stock) {
+                alert('Not enough stock available');
+                return;
+            }
             setCart(cart.map(item => item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item));
         } else {
-            setCart([...cart, { productId: product.id, name: product.name, price: product.price, quantity: 1 }]);
+            setCart([...cart, { productId: product.id, name: product.name, price: product.price, quantity: 1, stock: product.stock }]);
         }
     };
 
@@ -36,28 +45,56 @@ export default function SalesPage() {
         setCart(cart.filter(item => item.productId !== productId));
     };
 
+    const updateQuantity = (productId: string, delta: number) => {
+        setCart(cart.map(item => {
+            if (item.productId === productId) {
+                const newQty = item.quantity + delta;
+                if (newQty <= 0) return item; // Don't reduce below 1 here, use remove button
+                if (newQty > item.stock) return item; // Don't exceed stock
+                return { ...item, quantity: newQty };
+            }
+            return item;
+        }));
+    };
+
     const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const tax = total * 0.11;
+    const grandTotal = total + tax;
 
     const handleCheckout = async () => {
         setIsProcessing(true);
 
         // Mock Payment Gateway Delay
         if (paymentMethod !== 'CASH') {
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 1500));
         }
 
         try {
-            await axios.post('http://localhost:3000/transactions/sale', {
+            const payload = {
                 items: cart,
                 paymentMethod: paymentMethod,
-                taxRate: 11, // PPN 11%
+                taxRate: 11,
                 adminFee: 0
-            }, {
+            };
+
+            // In a real app, we'd get the ID back from the response to show in receipt
+            await axios.post('http://localhost:3000/transactions/sale', payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            alert('Sale recorded successfully!');
+
+            // Set receipt data
+            setLastTransaction({
+                id: `TRX-${Date.now()}`, // Mock ID since API might not return it
+                date: new Date(),
+                items: [...cart],
+                total,
+                tax,
+                grandTotal,
+                paymentMethod
+            });
+
             setCart([]);
-            router.push('/dashboard/transactions');
+            setIsReceiptOpen(true);
         } catch (err) {
             console.error(err);
             alert('Failed to record sale');
@@ -67,83 +104,209 @@ export default function SalesPage() {
     };
 
     return (
-        <div className="flex h-full gap-6">
+        <div className="flex flex-col lg:flex-row h-full gap-6">
             {/* Product List */}
-            <div className="flex-1 overflow-y-auto rounded-lg bg-white p-6 shadow">
-                <h3 className="mb-4 text-xl font-bold">Products</h3>
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-                    {products.map(product => (
-                        <div key={product.id}
-                            onClick={() => addToCart(product)}
-                            className="cursor-pointer rounded border p-4 hover:border-indigo-500 hover:shadow-md transition">
-                            <div className="font-semibold text-gray-800">{product.name}</div>
-                            <div className="text-sm text-gray-500">Stock: {product.stock}</div>
-                            <div className="mt-2 font-bold text-indigo-600">Rp {product.price}</div>
-                        </div>
-                    ))}
+            <div className="flex-1 overflow-hidden flex flex-col">
+                <div className="mb-6">
+                    <h3 className="text-3xl font-bold text-[var(--foreground)]">Point of Sale</h3>
+                    <p className="text-gray-500">Select products to add to cart</p>
+                </div>
+
+                <div className="flex-1 overflow-y-auto pr-2">
+                    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {products.map(product => (
+                            <div key={product.id}
+                                onClick={() => addToCart(product)}
+                                className={`
+                                    relative p-4 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] backdrop-blur-sm transition-all duration-200
+                                    ${product.stock > 0
+                                        ? 'cursor-pointer hover:border-[var(--primary)] hover:shadow-lg hover:-translate-y-1'
+                                        : 'opacity-60 cursor-not-allowed grayscale'}
+                                `}
+                            >
+                                <div className="aspect-square rounded-lg bg-[var(--background)] mb-3 flex items-center justify-center text-gray-400 text-xs">
+                                    IMG
+                                </div>
+                                <div className="font-semibold text-[var(--foreground)] truncate">{product.name}</div>
+                                <div className="flex justify-between items-center mt-1">
+                                    <span className="text-xs text-gray-500">{product.stock} in stock</span>
+                                    <span className="font-bold text-[var(--primary)] text-sm">Rp {product.price.toLocaleString('id-ID')}</span>
+                                </div>
+                                {product.stock <= 0 && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl">
+                                        <span className="bg-red-500/80 text-white text-xs font-bold px-2 py-1 rounded">Out of Stock</span>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
 
-            {/* Cart / Checkout */}
-            <div className="w-96 rounded-lg bg-white p-6 shadow flex flex-col">
-                <h3 className="mb-4 text-xl font-bold">Current Sale</h3>
-                <div className="flex-1 overflow-y-auto space-y-4">
-                    {cart.length === 0 && <p className="text-gray-500 text-center">Cart is empty</p>}
+            {/* Cart / Checkout Panel */}
+            <div className="w-full lg:w-96 flex-shrink-0 flex flex-col rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] backdrop-blur-md shadow-xl overflow-hidden h-[calc(100vh-140px)] sticky top-4">
+                <div className="p-4 border-b border-[var(--card-border)] bg-[var(--primary)]/5">
+                    <h3 className="text-lg font-bold text-[var(--foreground)] flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                        </svg>
+                        Current Order
+                    </h3>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {cart.length === 0 && (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-500 opacity-50">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 mb-2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                            </svg>
+                            <p>Cart is empty</p>
+                        </div>
+                    )}
                     {cart.map(item => (
-                        <div key={item.productId} className="flex items-center justify-between border-b pb-2">
-                            <div>
-                                <div className="font-medium">{item.name}</div>
-                                <div className="text-xs text-gray-500">x{item.quantity} @ {item.price}</div>
+                        <div key={item.productId} className="flex items-center justify-between p-3 rounded-lg border border-[var(--card-border)] bg-[var(--background)]">
+                            <div className="flex-1">
+                                <div className="font-medium text-[var(--foreground)] text-sm">{item.name}</div>
+                                <div className="text-xs text-gray-500">@ Rp {item.price.toLocaleString()}</div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <span className="font-bold">Rp {item.price * item.quantity}</span>
-                                <button onClick={() => removeFromCart(item.productId)} className="text-red-500 hover:text-red-700">&times;</button>
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center border border-[var(--card-border)] rounded-md">
+                                    <button onClick={() => updateQuantity(item.productId, -1)} className="px-2 py-1 hover:bg-gray-100 dark:hover:bg-white/5 text-[var(--foreground)] text-xs font-bold">-</button>
+                                    <span className="px-2 text-xs text-[var(--foreground)]">{item.quantity}</span>
+                                    <button onClick={() => updateQuantity(item.productId, 1)} className="px-2 py-1 hover:bg-gray-100 dark:hover:bg-white/5 text-[var(--foreground)] text-xs font-bold">+</button>
+                                </div>
+                                <span className="font-bold text-sm text-[var(--foreground)] w-20 text-right">
+                                    {((item.price * item.quantity) / 1000).toFixed(0)}k
+                                </span>
+                                <button onClick={() => removeFromCart(item.productId)} className="text-red-400 hover:text-red-500">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
                             </div>
                         </div>
                     ))}
                 </div>
 
-                <div className="mt-6 border-t pt-4">
-                    <div className="flex justify-between text-lg font-bold">
-                        <span>Total</span>
-                        <span>Rp {total}</span>
-                    </div>
-                    <div className="flex justify-between text-sm text-gray-500 mt-1">
-                        <span>Tax (11%)</span>
-                        <span>Rp {total * 0.11}</span>
-                    </div>
-                    <div className="flex justify-between text-xl font-bold text-indigo-700 mt-2">
-                        <span>Grand Total</span>
-                        <span>Rp {total * 1.11}</span>
+                <div className="p-4 border-t border-[var(--card-border)] bg-[var(--card-bg)]">
+                    <div className="space-y-2 mb-4">
+                        <div className="flex justify-between text-sm text-gray-500">
+                            <span>Subtotal</span>
+                            <span>Rp {total.toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-gray-500">
+                            <span>Tax (11%)</span>
+                            <span>Rp {tax.toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="flex justify-between text-xl font-bold text-[var(--primary)] border-t border-dashed border-[var(--card-border)] pt-2">
+                            <span>Total</span>
+                            <span>Rp {grandTotal.toLocaleString('id-ID')}</span>
+                        </div>
                     </div>
 
-                    <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-                        <select
-                            value={paymentMethod}
-                            onChange={(e) => setPaymentMethod(e.target.value)}
-                            className="mt-1 block w-full rounded-md border border-gray-300 p-2 text-indigo-700"
+                    <div className="space-y-3">
+                        <div>
+                            <select
+                                value={paymentMethod}
+                                onChange={(e) => setPaymentMethod(e.target.value)}
+                                className="w-full rounded-lg bg-[var(--background)] border border-[var(--card-border)] p-2 text-sm text-[var(--foreground)] focus:border-[var(--primary)] focus:outline-none"
+                            >
+                                <option value="CASH">Cash Payment</option>
+                                <option value="QRIS">QRIS / E-Wallet</option>
+                                <option value="TRANSFER">Bank Transfer</option>
+                                <option value="DEBIT">Debit Card</option>
+                            </select>
+                        </div>
+
+                        <button
+                            onClick={handleCheckout}
+                            disabled={cart.length === 0 || isProcessing}
+                            className={`
+                                w-full rounded-lg py-3 font-bold text-white shadow-lg transition-all flex justify-center items-center
+                                ${cart.length === 0 || isProcessing
+                                    ? 'bg-gray-500 cursor-not-allowed opacity-50'
+                                    : 'bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] hover:opacity-90 hover:scale-[1.02]'}
+                            `}
                         >
-                            <option value="CASH">Cash</option>
-                            <option value="QRIS">QRIS (Mock)</option>
-                            <option value="TRANSFER">Bank Transfer</option>
-                            <option value="EWALLET">E-Wallet</option>
-                        </select>
+                            {isProcessing ? (
+                                <div className="flex items-center gap-2">
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    <span>Processing...</span>
+                                </div>
+                            ) : (
+                                <span>Complete Sale</span>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Receipt Modal/Drawer */}
+            <Drawer
+                isOpen={isReceiptOpen}
+                onClose={() => setIsReceiptOpen(false)}
+                title="Transaction Receipt"
+                width="max-w-md"
+            >
+                <div className="text-center space-y-6">
+                    <div className="mx-auto w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center text-green-500 mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-8 h-8">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                    </div>
+
+                    <div>
+                        <h2 className="text-2xl font-bold text-[var(--foreground)]">Payment Successful!</h2>
+                        <p className="text-gray-500 mt-1">Transaction recorded successfully.</p>
+                    </div>
+
+                    <div className="bg-[var(--background)] p-6 rounded-xl border border-[var(--card-border)] text-left space-y-4 font-mono text-sm relative overflow-hidden">
+                        {/* Receipt zigzag decoration top */}
+                        <div className="absolute top-0 left-0 right-0 h-2 bg-[var(--card-bg)]"
+                            style={{ backgroundImage: 'linear-gradient(45deg, transparent 50%, var(--background) 50%), linear-gradient(-45deg, transparent 50%, var(--background) 50%)', backgroundSize: '10px 10px' }}></div>
+
+                        <div className="flex justify-between border-b border-dashed border-gray-700 pb-2">
+                            <span className="text-gray-500">TRX ID</span>
+                            <span className="text-[var(--foreground)]">{lastTransaction?.id}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-dashed border-gray-700 pb-2">
+                            <span className="text-gray-500">Date</span>
+                            <span className="text-[var(--foreground)]">{lastTransaction?.date?.toLocaleString()}</span>
+                        </div>
+
+                        <div className="space-y-1">
+                            {lastTransaction?.items.map((item: any) => (
+                                <div key={item.productId} className="flex justify-between">
+                                    <span className="text-gray-500">{item.name} x{item.quantity}</span>
+                                    <span className="text-[var(--foreground)]">{(item.price * item.quantity).toLocaleString()}</span>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="border-t border-dashed border-gray-700 pt-2 space-y-1">
+                            <div className="flex justify-between">
+                                <span className="text-gray-500">Subtotal</span>
+                                <span className="text-[var(--foreground)]">{lastTransaction?.total.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-500">Tax</span>
+                                <span className="text-[var(--foreground)]">{lastTransaction?.tax.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between font-bold text-lg mt-2">
+                                <span className="text-[var(--primary)]">TOTAL</span>
+                                <span className="text-[var(--primary)]">Rp {lastTransaction?.grandTotal.toLocaleString()}</span>
+                            </div>
+                        </div>
                     </div>
 
                     <button
-                        onClick={handleCheckout}
-                        disabled={cart.length === 0 || isProcessing}
-                        className="mt-4 w-full rounded bg-indigo-600 py-3 text-white font-bold hover:bg-indigo-700 disabled:opacity-50 flex justify-center items-center"
+                        onClick={() => setIsReceiptOpen(false)}
+                        className="w-full py-3 rounded-lg bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--foreground)] font-medium hover:bg-[var(--card-border)] transition-colors"
                     >
-                        {isProcessing ? (
-                            <span>Processing Payment...</span>
-                        ) : (
-                            <span>Checkout</span>
-                        )}
+                        Start New Sale
                     </button>
                 </div>
-            </div>
+            </Drawer>
         </div>
     );
 }
