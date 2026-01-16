@@ -32,7 +32,7 @@ export class ReportsService {
             if (sale.items) {
                 for (const item of sale.items) {
                     // Use the map instead of separate DB calls
-                    const product = productMap.get(item.productId);
+                    const product = productMap.get(item.productId) as any;
                     if (product) {
                         cogs += (Number(product.cost) * item.quantity);
                     }
@@ -137,6 +137,47 @@ export class ReportsService {
         return result;
     }
 
+    async getRecentTransactions(limit: number = 5) {
+        return (this.prisma as any).transaction.findMany({
+            take: limit,
+            orderBy: { date: 'desc' },
+            include: { creator: { select: { email: true } } }
+        });
+    }
+
+    async getTopSellingProducts(limit: number = 5) {
+        // Group by productId and sum quantity
+        const groupBy = await (this.prisma as any).transactionItem.groupBy({
+            by: ['productId'],
+            _sum: { quantity: true },
+            orderBy: { _sum: { quantity: 'desc' } },
+            take: limit
+        });
+
+        // Fetch product details
+        const topProducts: any[] = [];
+        for (const item of groupBy) {
+            const product = await (this.prisma as any).product.findUnique({ where: { id: item.productId } });
+            if (product) {
+                topProducts.push({
+                    ...product,
+                    soldQuantity: item._sum.quantity
+                });
+            }
+        }
+        return topProducts;
+    }
+
+    async getLowStockAlerts(threshold: number = 10) {
+        return (this.prisma as any).product.findMany({
+            where: {
+                type: 'GOODS', // Only track stock for GOODS
+                stock: { lte: threshold }
+            },
+            take: 5
+        });
+    }
+
     async getDashboardSummary() {
         const pnl = await this.getProfitLoss();
         const bs = await this.getBalanceSheet();
@@ -154,13 +195,79 @@ export class ReportsService {
             _sum: { amount: true }
         });
 
-        return {
-            totalRevenue: pnl.revenue,
-            netProfit: pnl.netProfit,
-            cashOnHand: bs.assets.cash,
-            salesToday: salesToday._sum.amount || 0,
-            totalEquity: bs.equity.total
-        };
+        // 4. Comparison (Growth)
+        const lastMonth = new Date();
+        lastMonth.setMonth(lastMonth.getMonth() - 1);
+        const startOfLastMonth = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1);
+        const endOfLastMonth = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0);
+
+        const revenueLastMonth = await (this.prisma as any).transaction.aggregate({
+            where: {
+                type: 'SALE',
+                date: { gte: startOfLastMonth, lte: endOfLastMonth }
+            },
+            _sum: { amount: true }
+        });
+
+        const currentRevenue = pnl.revenue; // This is actually total revenue, we might want monthly revenue for comparison? 
+        // For simplicity, let's calculate THIS MONTH revenue for the comparison card
+        const startOfThisMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        const revenueThisMonth = await (this.prisma as any).transaction.aggregate({
+            where: {
+                type: 'SALE',
+                date: { gte: startOfThisMonth }
+            },
+            _sum: { amount: true }
+        });
+
+        const revThisMonthVal = Number(revenueThisMonth._sum.amount || 0);
+        const revLastMonthVal = Number(revenueLastMonth._sum.amount || 0);
+
+        // Avoid division by zero
+        const growth = revLastMonthVal === 0 ? 100 : ((revThisMonthVal - revLastMonthVal) / revLastMonthVal) * 100;
+
+        const txCountToday = await (this.prisma as any).transaction.count({
+            where: {
+                type: 'SALE',
+                date: { gte: startOfDay, lte: endOfDay }
+            }
+        });
+
+        try {
+            // Fetch advanced stats
+            console.log('Fetching recentTransactions...');
+            const recentTransactions = await this.getRecentTransactions();
+
+            console.log('Fetching topProducts...');
+            const topProducts = await this.getTopSellingProducts();
+
+            console.log('Fetching lowStockAlerts...');
+            const lowStockAlerts = await this.getLowStockAlerts();
+
+            console.log('Fetching revenueForecast...');
+            const revenueForecast = await this.getRevenueForecast(); // existing
+
+            return {
+                totalRevenue: pnl.revenue, // Total All Time
+                revenueGrowth: growth.toFixed(1),
+                netProfit: pnl.netProfit,
+                cashOnHand: bs.assets.cash,
+                salesToday: salesToday._sum.amount || 0,
+                txCountToday,
+                totalEquity: bs.equity.total,
+                recentTransactions,
+                topProducts,
+                lowStockAlerts,
+                revenueForecast
+            };
+        } catch (error) {
+            console.error('Dashboard Error:', error);
+            // throw new Error(`Dashboard Error: ${error.message}`);
+            return {
+                error: error.message,
+                stack: error.stack
+            } as any;
+        }
     }
 
     async getRevenueForecast(daysToPredict: number = 30) {
