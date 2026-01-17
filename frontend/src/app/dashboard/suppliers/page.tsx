@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/Drawer';
+import { SystemModal } from '@/components/SystemModal';
 
 export default function SuppliersPage() {
     const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -13,6 +14,7 @@ export default function SuppliersPage() {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [drawerMode, setDrawerMode] = useState<'CREATE' | 'VIEW' | 'EDIT'>('CREATE');
     const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
+    const [modal, setModal] = useState<{ isOpen: boolean; type: 'success' | 'error' | 'confirm' | 'info'; message: string; onConfirm?: () => void }>({ isOpen: false, type: 'info', message: '' });
 
     const [formData, setFormData] = useState({
         name: '',
@@ -111,26 +113,33 @@ export default function SuppliersPage() {
             }
             fetchSuppliers();
             setIsDrawerOpen(false);
+            setModal({ isOpen: true, type: 'success', message: drawerMode === 'CREATE' ? 'Supplier added successfully!' : 'Supplier updated successfully!' });
         } catch (err) {
             console.error(err);
-            alert('Failed to save supplier.');
+            setModal({ isOpen: true, type: 'error', message: 'Failed to save supplier.' });
         }
     };
 
     const handleDelete = async () => {
         if (!selectedSupplier) return;
-        if (confirm('Are you sure you want to delete this supplier?')) {
-            try {
-                await axios.delete(`http://localhost:3000/suppliers/${selectedSupplier.id}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                fetchSuppliers();
-                setIsDrawerOpen(false);
-            } catch (err) {
-                console.error(err);
-                alert('Failed to delete supplier.');
+        setModal({
+            isOpen: true,
+            type: 'confirm',
+            message: 'Are you sure you want to delete this supplier?',
+            onConfirm: async () => {
+                try {
+                    await axios.delete(`http://localhost:3000/suppliers/${selectedSupplier.id}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    fetchSuppliers();
+                    setIsDrawerOpen(false);
+                    setModal({ isOpen: true, type: 'success', message: 'Supplier deleted successfully' });
+                } catch (err) {
+                    console.error(err);
+                    setModal({ isOpen: true, type: 'error', message: 'Failed to delete supplier.' });
+                }
             }
-        }
+        });
     }
 
     return (
@@ -338,6 +347,14 @@ export default function SuppliersPage() {
                     </div>
                 </form>
             </Drawer>
+
+            <SystemModal
+                isOpen={modal.isOpen}
+                onClose={() => setModal({ ...modal, isOpen: false })}
+                type={modal.type}
+                message={modal.message}
+                onConfirm={modal.onConfirm}
+            />
         </div>
     );
 }

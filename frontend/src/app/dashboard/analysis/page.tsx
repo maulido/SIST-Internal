@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import FinancialHealthCards from '@/components/dashboard/FinancialHealthCards';
 import { SalesTrendChart } from '@/components/dashboard/SalesTrendChart';
 import { TopProducts } from '@/components/dashboard/TopProducts';
+import { SystemModal } from '@/components/SystemModal';
 
 export default function AnalysisPage() {
     const { token } = useAuth();
@@ -85,12 +86,17 @@ function BreakEvenSimulator() {
     const [variableCostPerUnit, setVariableCostPerUnit] = useState(0);
     const [bepUnits, setBepUnits] = useState<number | null>(null);
     const [bepRupiah, setBepRupiah] = useState<number | null>(null);
+    const [modal, setModal] = useState<any>({ isOpen: false, type: 'info', message: '' });
 
     const calculateBEP = (e: React.FormEvent) => {
         e.preventDefault();
         const margin = pricePerUnit - variableCostPerUnit;
         if (margin <= 0) {
-            alert("Margin must be positive (Price > Variable Cost)");
+            setModal({
+                isOpen: true,
+                type: 'error',
+                message: "Margin must be positive (Price > Variable Cost)"
+            });
             return;
         }
 
@@ -176,6 +182,13 @@ function BreakEvenSimulator() {
                     </div>
                 </div>
             )}
+
+            <SystemModal
+                isOpen={modal.isOpen}
+                onClose={() => setModal({ ...modal, isOpen: false })}
+                type={modal.type}
+                message={modal.message}
+            />
         </div>
     );
 }

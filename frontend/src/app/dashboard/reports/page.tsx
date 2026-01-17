@@ -3,22 +3,43 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
+import { IncomeStatement } from '@/components/dashboard/reports/IncomeStatement';
+import { BalanceSheet } from '@/components/dashboard/reports/BalanceSheet';
+import { CashFlowStatement } from '@/components/dashboard/reports/CashFlowStatement';
+import { SystemModal } from '@/components/SystemModal';
 
 export default function ReportsPage() {
     const { token, isLoading } = useAuth();
     const [pnl, setPnl] = useState<any>(null);
     const [bs, setBs] = useState<any>(null);
-    const [activeTab, setActiveTab] = useState<'PNL' | 'BALANCE'>('PNL');
+    const [cf, setCf] = useState<any>(null);
+    const [activeTab, setActiveTab] = useState<'PNL' | 'BALANCE' | 'CASH'>('PNL');
+    const [modal, setModal] = useState<{ isOpen: boolean; type: 'success' | 'error' | 'confirm' | 'info'; message: string }>({ isOpen: false, type: 'info', message: '' });
+
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (token && !isLoading) {
-            axios.get('http://localhost:3000/reports/pnl', { headers: { Authorization: `Bearer ${token}` } })
-                .then(res => setPnl(res.data)).catch(console.error);
+            Promise.allSettled([
+                axios.get('http://localhost:3000/reports/pnl', { headers: { Authorization: `Bearer ${token}` } }),
+                axios.get('http://localhost:3000/reports/balance-sheet', { headers: { Authorization: `Bearer ${token}` } }),
+                axios.get('http://localhost:3000/reports/cash-flow', { headers: { Authorization: `Bearer ${token}` } })
+            ]).then((results) => {
+                const [pnlRes, bsRes, cfRes] = results;
 
-            axios.get('http://localhost:3000/reports/balance-sheet', { headers: { Authorization: `Bearer ${token}` } })
-                .then(res => setBs(res.data)).catch(console.error);
+                if (pnlRes.status === 'fulfilled') setPnl(pnlRes.value.data);
+                else console.error('PnL Failed', pnlRes.reason);
+
+                if (bsRes.status === 'fulfilled') setBs(bsRes.value.data);
+                else console.error('BS Failed', bsRes.reason);
+
+                if (cfRes.status === 'fulfilled') setCf(cfRes.value.data);
+                else console.error('CF Failed', cfRes.reason);
+            }).catch(err => setError(err.message));
         }
     }, [token, isLoading]);
+
+    // ... export logic ...
 
     const handlePrint = () => {
         window.print();
@@ -42,18 +63,20 @@ export default function ReportsPage() {
             link.parentNode?.removeChild(link);
         } catch (error) {
             console.error('Export failed:', error);
-            alert('Failed to export report');
+            setModal({ isOpen: true, type: 'error', message: 'Failed to export report. Please try again.' });
         }
     };
 
-    if (!pnl || !bs) return (
+    if (isLoading) return (
         <div className="flex h-[50vh] items-center justify-center space-x-2 animate-pulse">
             <div className="w-4 h-4 rounded-full bg-[var(--primary)]"></div>
             <div className="w-4 h-4 rounded-full bg-[var(--primary)] delay-75"></div>
             <div className="w-4 h-4 rounded-full bg-[var(--primary)] delay-150"></div>
-            <span className="text-[var(--primary)] font-medium">Generating Financial Reports...</span>
+            <span className="text-[var(--primary)] font-medium">Loading...</span>
         </div>
     );
+
+    if (error) return <div className="p-8 text-red-500">Error loading reports: {error}</div>;
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto print:max-w-none">
@@ -98,136 +121,33 @@ export default function ReportsPage() {
                 >
                     Balance Sheet
                 </button>
+                <button
+                    onClick={() => setActiveTab('CASH')}
+                    className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'CASH' ? 'border-[var(--primary)] text-[var(--primary)]' : 'border-transparent text-gray-500 hover:text-[var(--foreground)]'}`}
+                >
+                    Cash Flow
+                </button>
             </div>
 
             {/* Content */}
-            <div className={`space-y-6 ${activeTab === 'PNL' ? 'block' : 'hidden print:block'}`}>
-                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-8 shadow-sm backdrop-blur-sm print:border-none print:shadow-none">
-                    <div className="text-center mb-8 pb-4 border-b border-[var(--card-border)] border-dashed">
-                        <h2 className="text-2xl font-bold text-[var(--foreground)]">Profit & Loss Statement</h2>
-                        <p className="text-gray-500 text-sm">Period: Current Fiscal Year</p>
-                    </div>
-
-                    <div className="space-y-4 max-w-2xl mx-auto">
-                        {/* Revenue Section */}
-                        <div className="space-y-2">
-                            <h4 className="text-sm font-bold text-[var(--primary)] uppercase tracking-widest">Revenue</h4>
-                            <div className="flex justify-between items-center py-2 border-b border-[var(--card-border)]">
-                                <span className="text-[var(--foreground)]">Gross Sales</span>
-                                <span className="font-mono font-medium text-[var(--foreground)]">Rp {pnl.revenue.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-2 border-b border-[var(--card-border)]">
-                                <span className="text-gray-500">Cost of Goods Sold (COGS)</span>
-                                <span className="font-mono font-medium text-red-500">- Rp {pnl.cogs.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-3 bg-[var(--foreground)]/5 px-4 rounded-lg mt-2">
-                                <span className="font-bold text-[var(--foreground)]">Gross Profit</span>
-                                <span className="font-mono font-bold text-[var(--foreground)]">Rp {pnl.grossProfit.toLocaleString()}</span>
-                            </div>
-                        </div>
-
-                        {/* Operational Expenses */}
-                        <div className="space-y-2 pt-6">
-                            <h4 className="text-sm font-bold text-orange-500 uppercase tracking-widest">Operational Expenses</h4>
-                            {Object.entries(pnl.expenseBreakdown).map(([cat, amount]) => (
-                                <div key={cat} className="flex justify-between items-center py-2 border-b border-[var(--card-border)] border-dashed">
-                                    <span className="text-gray-500">{cat}</span>
-                                    <span className="font-mono text-gray-600 dark:text-gray-400">Rp {(amount as number).toLocaleString()}</span>
-                                </div>
-                            ))}
-                            {Object.keys(pnl.expenseBreakdown).length === 0 && <p className="text-gray-500 text-sm italic py-2">No expenses recorded.</p>}
-                        </div>
-
-                        {/* Net Income */}
-                        <div className="pt-8">
-                            <div className={`flex justify-between items-center py-4 px-6 rounded-xl border-2 ${pnl.netProfit >= 0 ? 'border-green-500/20 bg-green-500/10' : 'border-red-500/20 bg-red-500/10'}`}>
-                                <div>
-                                    <span className="block text-sm font-bold uppercase tracking-widest opacity-70">Net Income</span>
-                                    <span className="text-xs opacity-60">Before Tax</span>
-                                </div>
-                                <span className={`font-mono text-2xl font-bold ${pnl.netProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                    Rp {pnl.netProfit.toLocaleString()}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+            <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-8 shadow-sm backdrop-blur-sm print:border-none print:shadow-none print:p-0">
+                <div className={activeTab === 'PNL' ? 'block' : 'hidden print:block print:mb-12'}>
+                    <IncomeStatement data={pnl} />
+                </div>
+                <div className={activeTab === 'BALANCE' ? 'block' : 'hidden print:block print:mb-12'}>
+                    <BalanceSheet data={bs} />
+                </div>
+                <div className={activeTab === 'CASH' ? 'block' : 'hidden print:block'}>
+                    <CashFlowStatement data={cf} />
                 </div>
             </div>
 
-            <div className={`space-y-6 ${activeTab === 'BALANCE' ? 'block' : 'hidden print:block print:mt-10'}`}>
-                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-8 shadow-sm backdrop-blur-sm print:border-none print:shadow-none">
-                    <div className="text-center mb-8 pb-4 border-b border-[var(--card-border)] border-dashed">
-                        <h2 className="text-2xl font-bold text-[var(--foreground)]">Balance Sheet</h2>
-                        <p className="text-gray-500 text-sm">As of {new Date().toLocaleDateString()}</p>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-12">
-                        {/* Assets */}
-                        <div>
-                            <h4 className="text-lg font-bold text-[var(--primary)] border-b-2 border-[var(--primary)] pb-2 mb-4">Assets</h4>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <h5 className="text-sm font-semibold text-gray-500 mb-2">Current Assets</h5>
-                                    <div className="flex justify-between py-1 border-b border-[var(--card-border)] border-dashed">
-                                        <span className="text-[var(--foreground)]">Cash on Hand</span>
-                                        <span className="font-mono text-[var(--foreground)]">Rp {bs.assets.cash.toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex justify-between py-1 border-b border-[var(--card-border)] border-dashed">
-                                        <span className="text-[var(--foreground)]">Inventory</span>
-                                        <span className="font-mono text-[var(--foreground)]">Rp {bs.assets.inventory.toLocaleString()}</span>
-                                    </div>
-                                </div>
-
-                                <div className="pt-4">
-                                    <h5 className="text-sm font-semibold text-gray-500 mb-2">Fixed Assets</h5>
-                                    <div className="flex justify-between py-1 border-b border-[var(--card-border)] border-dashed">
-                                        <span className="text-[var(--foreground)]">Equipment & Machinery</span>
-                                        <span className="font-mono text-[var(--foreground)]">Rp {bs.assets.fixedAssets.toLocaleString()}</span>
-                                    </div>
-                                </div>
-
-                                <div className="flex justify-between py-3 bg-[var(--foreground)]/5 px-4 rounded-lg mt-6">
-                                    <span className="font-bold text-[var(--foreground)]">Total Assets</span>
-                                    <span className="font-mono font-bold text-[var(--foreground)]">Rp {bs.assets.total.toLocaleString()}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Liabilities & Equity */}
-                        <div>
-                            <h4 className="text-lg font-bold text-[var(--secondary)] border-b-2 border-[var(--secondary)] pb-2 mb-4">Liabilities & Equity</h4>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <h5 className="text-sm font-semibold text-gray-500 mb-2">Liabilities</h5>
-                                    <div className="flex justify-between py-1 border-b border-[var(--card-border)] border-dashed">
-                                        <span className="text-[var(--foreground)]">Accounts Payable</span>
-                                        <span className="font-mono text-[var(--foreground)]">Rp {bs.liabilities.total.toLocaleString()}</span>
-                                    </div>
-                                </div>
-
-                                <div className="pt-4">
-                                    <h5 className="text-sm font-semibold text-gray-500 mb-2">Equity</h5>
-                                    <div className="flex justify-between py-1 border-b border-[var(--card-border)] border-dashed">
-                                        <span className="text-[var(--foreground)]">Owner's Capital</span>
-                                        <span className="font-mono text-[var(--foreground)]">Rp {bs.equity.capital.toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex justify-between py-1 border-b border-[var(--card-border)] border-dashed">
-                                        <span className="text-[var(--foreground)]">Retained Earnings</span>
-                                        <span className="font-mono text-[var(--foreground)]">Rp {bs.equity.retainedEarnings.toLocaleString()}</span>
-                                    </div>
-                                </div>
-
-                                <div className="flex justify-between py-3 bg-[var(--foreground)]/5 px-4 rounded-lg mt-6">
-                                    <span className="font-bold text-[var(--foreground)]">Total Liabilities & Equity</span>
-                                    <span className="font-mono font-bold text-[var(--foreground)]">Rp {(bs.liabilities.total + bs.equity.total).toLocaleString()}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <SystemModal
+                isOpen={modal.isOpen}
+                onClose={() => setModal({ ...modal, isOpen: false })}
+                type={modal.type}
+                message={modal.message}
+            />
         </div>
     );
 }

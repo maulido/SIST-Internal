@@ -5,10 +5,13 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 
+import { SystemModal } from '@/components/SystemModal';
+
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [modal, setModal] = useState<any>({ isOpen: false, type: 'info', message: '' });
     const { login } = useAuth();
     const router = useRouter();
 
@@ -28,7 +31,11 @@ export default function LoginPage() {
             router.push('/dashboard');
         } catch (error) {
             console.error(error);
-            alert('Login failed. Please check your credentials.');
+            setModal({
+                isOpen: true,
+                type: 'error',
+                message: 'Login failed. Please check your credentials.'
+            });
         } finally {
             setIsLoading(false);
         }
@@ -94,6 +101,13 @@ export default function LoginPage() {
                     </div>
                 </div>
             </div>
+
+            <SystemModal
+                isOpen={modal.isOpen}
+                onClose={() => setModal({ ...modal, isOpen: false })}
+                type={modal.type}
+                message={modal.message}
+            />
         </div>
     );
 }

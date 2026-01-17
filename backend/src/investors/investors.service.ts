@@ -26,7 +26,10 @@ export class InvestorsService {
 
     async findAll() {
         return this.prisma.investor.findMany({
-            include: { user: true },
+            include: {
+                user: true,
+                capitalHistory: true
+            },
         });
     }
 

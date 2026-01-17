@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/Drawer';
+import { SystemModal } from '@/components/SystemModal';
 import { Pagination } from '@/components/Pagination';
 import { usePagination } from '@/hooks/usePagination';
 
@@ -15,14 +16,21 @@ export default function AssetsPage() {
     // Drawer & Selection
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [drawerMode, setDrawerMode] = useState<'CREATE' | 'VIEW'>('CREATE');
+
     const [selectedAsset, setSelectedAsset] = useState<any>(null);
+    const [modal, setModal] = useState<any>({ isOpen: false, type: 'info', message: '' });
 
     const [formData, setFormData] = useState({
         name: '',
         category: 'Fixed',
         purchasePrice: '',
         usefulLife: 12,
-        purchaseDate: new Date().toISOString().split('T')[0]
+        purchaseDate: new Date().toISOString().split('T')[0],
+        serialNumber: '',
+        condition: 'Good',
+        status: 'Active',
+        notes: '',
+        assignedTo: ''
     });
 
     const fetchAssets = () => {
@@ -57,7 +65,12 @@ export default function AssetsPage() {
             category: 'Fixed',
             purchasePrice: '',
             usefulLife: 12,
-            purchaseDate: new Date().toISOString().split('T')[0]
+            purchaseDate: new Date().toISOString().split('T')[0],
+            serialNumber: '',
+            condition: 'Good',
+            status: 'Active',
+            notes: '',
+            assignedTo: ''
         });
         setDrawerMode('CREATE');
         setIsDrawerOpen(true);
@@ -83,9 +96,18 @@ export default function AssetsPage() {
             });
             fetchAssets();
             setIsDrawerOpen(false);
+            setModal({
+                isOpen: true,
+                type: 'success',
+                message: 'Asset saved successfully!'
+            });
         } catch (err) {
             console.error(err);
-            alert('Failed to save asset. Check console for details.');
+            setModal({
+                isOpen: true,
+                type: 'error',
+                message: 'Failed to save asset. Check console for details.'
+            });
         }
     };
 
@@ -161,9 +183,15 @@ export default function AssetsPage() {
                                         {asset.name}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className="px-2 py-1 text-xs rounded-full border border-[var(--card-border)] bg-[var(--background)] text-gray-500">
-                                            {asset.category}
-                                        </span>
+                                        <div className="flex flex-col gap-1">
+                                            <span className="px-2 py-1 text-xs rounded-full border border-[var(--card-border)] bg-[var(--background)] text-gray-500 w-fit">
+                                                {asset.category}
+                                            </span>
+                                            <span className={`text-[10px] uppercase font-bold tracking-wider ${asset.status === 'Disposed' ? 'text-red-500' : asset.status === 'Maintenance' ? 'text-yellow-500' : 'text-green-500'
+                                                }`}>
+                                                {asset.status || 'Active'}
+                                            </span>
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--foreground)]">
                                         {new Date(asset.purchaseDate).toLocaleDateString()}
@@ -237,28 +265,69 @@ export default function AssetsPage() {
 
                         <div className="space-y-3 pt-6 border-t border-[var(--card-border)]">
                             <h4 className="font-bold text-[var(--foreground)]">Details</h4>
-                            <div className="flex justify-between py-2 border-b border-[var(--card-border)] border-dashed">
-                                <span className="text-gray-500 text-sm">Category</span>
-                                <span className="text-[var(--foreground)] text-sm">{selectedAsset?.category}</span>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-gray-500 text-xs">Category</p>
+                                    <p className="text-[var(--foreground)] font-medium">{selectedAsset?.category}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-500 text-xs">Acquisition Date</p>
+                                    <p className="text-[var(--foreground)] font-medium">{new Date(selectedAsset?.purchaseDate).toLocaleDateString()}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-500 text-xs">Serial Number</p>
+                                    <p className="text-[var(--foreground)] font-medium">{selectedAsset?.serialNumber || '-'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-500 text-xs">Status</p>
+                                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${selectedAsset?.status === 'Active' ? 'bg-green-100 text-green-700' :
+                                        selectedAsset?.status === 'Disposed' ? 'bg-red-100 text-red-700' :
+                                            'bg-yellow-100 text-yellow-700'
+                                        }`}>
+                                        {selectedAsset?.status || 'Active'}
+                                    </span>
+                                </div>
+                                <div>
+                                    <p className="text-gray-500 text-xs">Condition</p>
+                                    <p className="text-[var(--foreground)] font-medium">{selectedAsset?.condition || 'Good'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-500 text-xs">Assigned To</p>
+                                    <p className="text-[var(--foreground)] font-medium">{selectedAsset?.assignedTo || 'Unassigned'}</p>
+                                </div>
                             </div>
-                            <div className="flex justify-between py-2 border-b border-[var(--card-border)] border-dashed">
-                                <span className="text-gray-500 text-sm">Acquisition Date</span>
-                                <span className="text-[var(--foreground)] text-sm">{new Date(selectedAsset?.purchaseDate).toLocaleDateString()}</span>
-                            </div>
+                            {selectedAsset?.notes && (
+                                <div className="mt-4 p-3 bg-[var(--foreground)]/5 rounded-lg">
+                                    <p className="text-gray-500 text-xs uppercase mb-1">Notes</p>
+                                    <p className="text-sm text-[var(--foreground)]">{selectedAsset.notes}</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-[var(--foreground)]">Asset Name</label>
-                            <input
-                                type="text"
-                                className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none transition-all"
-                                value={formData.name}
-                                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                required
-                                placeholder="e.g. Espresso Machine / Office Laptop"
-                            />
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-[var(--foreground)]">Asset Name</label>
+                                <input
+                                    type="text"
+                                    className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none transition-all"
+                                    value={formData.name}
+                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                    required
+                                    placeholder="e.g. Espresso Machine"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-[var(--foreground)]">Serial Number</label>
+                                <input
+                                    type="text"
+                                    className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none transition-all"
+                                    value={formData.serialNumber}
+                                    onChange={e => setFormData({ ...formData, serialNumber: e.target.value })}
+                                    placeholder="S/N: 123456"
+                                />
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
@@ -276,14 +345,42 @@ export default function AssetsPage() {
                                 </select>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-[var(--foreground)]">Useful Life (Months)</label>
+                                <label className="text-sm font-medium text-[var(--foreground)]">Status</label>
+                                <select
+                                    className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none transition-all appearance-none"
+                                    value={formData.status}
+                                    onChange={e => setFormData({ ...formData, status: e.target.value })}
+                                >
+                                    <option value="Active">Active</option>
+                                    <option value="In Storage">In Storage</option>
+                                    <option value="Maintenance">Under Maintenance</option>
+                                    <option value="Disposed">Disposed</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-[var(--foreground)]">Condition</label>
+                                <select
+                                    className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none transition-all appearance-none"
+                                    value={formData.condition}
+                                    onChange={e => setFormData({ ...formData, condition: e.target.value })}
+                                >
+                                    <option value="Good">Good</option>
+                                    <option value="Fair">Fair</option>
+                                    <option value="Poor">Poor</option>
+                                    <option value="Damaged">Damaged</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2 col-span-2">
+                                <label className="text-sm font-medium text-[var(--foreground)]">Assigned To</label>
                                 <input
-                                    type="number"
+                                    type="text"
                                     className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none transition-all"
-                                    value={formData.usefulLife}
-                                    onChange={e => setFormData({ ...formData, usefulLife: Number(e.target.value) })}
-                                    required
-                                    min="1"
+                                    value={formData.assignedTo}
+                                    onChange={e => setFormData({ ...formData, assignedTo: e.target.value })}
+                                    placeholder="Employee Name / ID"
                                 />
                             </div>
                         </div>
@@ -300,15 +397,38 @@ export default function AssetsPage() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-[var(--foreground)]">Acquisition Date</label>
+                                <label className="text-sm font-medium text-[var(--foreground)]">Useful Life (Months)</label>
                                 <input
-                                    type="date"
+                                    type="number"
                                     className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none transition-all"
-                                    value={formData.purchaseDate}
-                                    onChange={e => setFormData({ ...formData, purchaseDate: e.target.value })}
+                                    value={formData.usefulLife}
+                                    onChange={e => setFormData({ ...formData, usefulLife: Number(e.target.value) })}
                                     required
+                                    min="1"
                                 />
                             </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-[var(--foreground)]">Acquisition Date</label>
+                            <input
+                                type="date"
+                                className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none transition-all"
+                                value={formData.purchaseDate}
+                                onChange={e => setFormData({ ...formData, purchaseDate: e.target.value })}
+                                required
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-[var(--foreground)]">Notes</label>
+                            <textarea
+                                className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none transition-all"
+                                value={formData.notes}
+                                onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                                rows={3}
+                                placeholder="Additional details..."
+                            />
                         </div>
 
                         <div className="pt-4 flex gap-3">
@@ -328,7 +448,7 @@ export default function AssetsPage() {
                         </div>
                     </form>
                 )}
-            </Drawer>
-        </div>
+            </Drawer >
+        </div >
     );
 }

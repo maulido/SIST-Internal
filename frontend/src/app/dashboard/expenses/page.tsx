@@ -5,6 +5,8 @@ import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/Drawer';
 
+import { SystemModal } from '@/components/SystemModal';
+
 export default function ExpensesPage() {
     const [expenses, setExpenses] = useState<any[]>([]);
     const { token, isLoading } = useAuth();
@@ -13,6 +15,7 @@ export default function ExpensesPage() {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [drawerMode, setDrawerMode] = useState<'CREATE' | 'VIEW'>('CREATE');
     const [selectedExpense, setSelectedExpense] = useState<any>(null);
+    const [modal, setModal] = useState<any>({ isOpen: false, type: 'info', message: '' });
 
     // Form Data
     const [formData, setFormData] = useState({
@@ -69,23 +72,24 @@ export default function ExpensesPage() {
                 amount: Number(formData.amount) * (Number(formData.amount) > 0 ? 1 : -1) // Ensure positive, backend logic handles sign usually? No, expense usually 400. 
                 // Wait, in previous file I saw comment: "Service creates transaction with type EXPENSE."
                 // Usually for expenses we send positive amount and backend marks it as expense (-).
-                // Let's send positive Number.
-                // Re-reading previous code: "amount: Number(formData.amount) * -1 // Store as negative"
-                // Okay, I will send positive and let's check backend or just trust previous logic? 
-                // Actually previous code sent * -1. Let's try sending POSITIVE and let backend handle, or NEGATIVE if that was working.
-                // The previous code explicitly did `* -1`. I'll assume endpoint expects negative for expense? 
-                // Let's stick to sending POSITIVE and letting backend/logic decide, OR if I need to match previous logic:
-                // Previous logic: `amount: Number(formData.amount) * -1`.
-                // I'll stick to that to be safe.
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            alert('Expense recorded successfully!');
+
+            setModal({
+                isOpen: true,
+                type: 'success',
+                message: 'Expense recorded successfully!'
+            });
             setIsDrawerOpen(false);
             fetchExpenses();
         } catch (err: any) {
             console.error(err);
-            alert(err.response?.data?.message || 'Failed to record expense');
+            setModal({
+                isOpen: true,
+                type: 'error',
+                message: err.response?.data?.message || 'Failed to record expense'
+            });
         }
     };
 
@@ -288,6 +292,13 @@ export default function ExpensesPage() {
                     </form>
                 )}
             </Drawer>
+
+            <SystemModal
+                isOpen={modal.isOpen}
+                onClose={() => setModal({ ...modal, isOpen: false })}
+                type={modal.type}
+                message={modal.message}
+            />
         </div>
     );
 }

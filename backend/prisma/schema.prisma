@@ -47,6 +47,13 @@ model Investor {
   joinedAt        DateTime @default(now())
   
   capitalHistory  Transaction[]
+
+  // Bank Details
+  bankName        String?
+  accountNumber   String?
+  accountHolder   String?
+  status          String?  @default("ACTIVE") // ACTIVE, INACTIVE
+  notes           String?
 }
 
 model Transaction {
@@ -129,6 +136,13 @@ model Asset {
   currentValue  Decimal
   usefulLife    Int?
   location      String?
+  
+  serialNumber  String? // Unique identifier
+  condition     String? // Good, Fair, Poor, Damaged, Retired
+  status        String? // Active, In Storage, Under Maintenance, Disposed
+  notes         String?
+  image         String? // URL or path
+  assignedTo    String? // User name or ID
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

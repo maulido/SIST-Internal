@@ -5,6 +5,7 @@ import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/Drawer';
 import { Modal } from '@/components/Modal';
+import { SystemModal } from '@/components/SystemModal';
 import { Pagination } from '@/components/Pagination';
 import { usePagination } from '@/hooks/usePagination';
 
@@ -122,7 +123,8 @@ export default function ProductsPage() {
         fetchHistory(product.id);
     };
 
-    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+
+    const [modal, setModal] = useState<{ isOpen: boolean; type: 'success' | 'error' | 'confirm' | 'info'; message: string; onConfirm?: () => void }>({ isOpen: false, type: 'info', message: '' });
     const [productToDelete, setProductToDelete] = useState<any>(null);
 
     // Restock State
@@ -136,7 +138,12 @@ export default function ProductsPage() {
 
     const handleDeleteClick = (product: any) => {
         setProductToDelete(product);
-        setDeleteModalOpen(true);
+        setModal({
+            isOpen: true,
+            type: 'confirm',
+            message: `Are you sure you want to delete ${product.name}? This action cannot be undone.`,
+            onConfirm: () => confirmDelete()
+        });
     };
 
     const handleRestockClick = (product: any) => {
@@ -162,13 +169,13 @@ export default function ProductsPage() {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            alert(`Stock added successfully!`);
+            setModal({ isOpen: true, type: 'success', message: 'Stock added successfully!' });
             fetchProducts();
             setRestockModalOpen(false);
             setProductToRestock(null);
         } catch (err: any) {
             console.error(err);
-            alert('Failed to restock');
+            setModal({ isOpen: true, type: 'error', message: 'Failed to restock' });
         }
     };
 
@@ -178,18 +185,17 @@ export default function ProductsPage() {
             await axios.delete(`http://localhost:3000/products/${productToDelete.id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            alert('Product deleted successfully');
+            setModal({ isOpen: true, type: 'success', message: 'Product deleted successfully' });
             fetchProducts();
-            setDeleteModalOpen(false);
             setProductToDelete(null);
         } catch (err) {
             console.error(err);
-            alert('Failed to delete product');
+            setModal({ isOpen: true, type: 'error', message: 'Failed to delete product' });
         }
     };
 
     const handleExport = () => {
-        if (products.length === 0) return alert('No products to export');
+        if (products.length === 0) return setModal({ isOpen: true, type: 'info', message: 'No products to export' });
 
         // CSV Header
         const headers = ['Name', 'SKU', 'Price', 'Cost', 'Stock', 'Category', 'Type', 'Description'];
@@ -234,7 +240,7 @@ export default function ProductsPage() {
                 const lines = text.split('\n');
                 const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, '')); // Simple cleanup
 
-                const productsToImport = [];
+                const productsToImport: any[] = [];
                 // Start from 1 to skip header
                 for (let i = 1; i < lines.length; i++) {
                     const line = lines[i].trim();
@@ -266,20 +272,30 @@ export default function ProductsPage() {
                 }
 
                 if (productsToImport.length === 0) {
-                    alert('No valid products found in CSV');
+                    setModal({ isOpen: true, type: 'info', message: 'No valid products found in CSV' });
                     return;
                 }
 
-                if (confirm(`Ready to import ${productsToImport.length} products?`)) {
-                    await axios.post('http://localhost:3000/products/bulk', productsToImport, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
-                    alert(`Successfully imported ${productsToImport.length} products!`);
-                    fetchProducts();
-                }
+                setModal({
+                    isOpen: true,
+                    type: 'confirm',
+                    message: `Ready to import ${productsToImport.length} products?`,
+                    onConfirm: async () => {
+                        try {
+                            await axios.post('http://localhost:3000/products/bulk', productsToImport, {
+                                headers: { Authorization: `Bearer ${token}` }
+                            });
+                            setModal({ isOpen: true, type: 'success', message: `Successfully imported ${productsToImport.length} products!` });
+                            fetchProducts();
+                        } catch (err) {
+                            console.error(err);
+                            setModal({ isOpen: true, type: 'error', message: 'Failed to import products. Check CSV format.' });
+                        }
+                    }
+                });
             } catch (err) {
                 console.error(err);
-                alert('Failed to import products. Check CSV format.');
+                setModal({ isOpen: true, type: 'error', message: 'Failed to import products. Check CSV format.' });
             } finally {
                 // Reset input
                 if (e.target) e.target.value = '';
@@ -312,16 +328,16 @@ export default function ProductsPage() {
 
             if (drawerMode === 'CREATE') {
                 await axios.post('http://localhost:3000/products', data, config);
-                alert('Product created successfully!');
+                setModal({ isOpen: true, type: 'success', message: 'Product created successfully!' });
             } else if (drawerMode === 'EDIT' && selectedProduct) {
                 await axios.put(`http://localhost:3000/products/${selectedProduct.id}`, data, config);
-                alert('Product updated successfully!');
+                setModal({ isOpen: true, type: 'success', message: 'Product updated successfully!' });
             }
             setIsDrawerOpen(false);
             fetchProducts();
         } catch (err: any) {
             console.error(err);
-            alert(err.response?.data?.message || 'Operation failed');
+            setModal({ isOpen: true, type: 'error', message: err.response?.data?.message || 'Operation failed' });
         }
     };
 
@@ -751,33 +767,13 @@ export default function ProductsPage() {
             </Drawer>
 
             {/* Delete Confirmation Modal */}
-            <Modal
-                isOpen={deleteModalOpen}
-                onClose={() => setDeleteModalOpen(false)}
-                title="Delete Product"
-            >
-                <div className="space-y-4">
-                    <p className="text-[var(--foreground)]">
-                        Are you sure you want to delete <span className="font-bold">{productToDelete?.name}</span>?
-                        <br />
-                        <span className="text-sm text-gray-500">This action cannot be undone.</span>
-                    </p>
-                    <div className="flex justify-end gap-3 pt-4">
-                        <button
-                            onClick={() => setDeleteModalOpen(false)}
-                            className="px-4 py-2 rounded-lg border border-[var(--card-border)] text-[var(--foreground)] hover:bg-[var(--foreground)]/5 transition-colors font-medium"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={confirmDelete}
-                            className="px-4 py-2 rounded-lg bg-red-500 text-white font-bold hover:bg-red-600 transition-colors shadow-red-500/30 shadow-lg"
-                        >
-                            Delete
-                        </button>
-                    </div>
-                </div>
-            </Modal>
+            <SystemModal
+                isOpen={modal.isOpen}
+                onClose={() => setModal({ ...modal, isOpen: false })}
+                type={modal.type}
+                message={modal.message}
+                onConfirm={modal.onConfirm}
+            />
 
             {/* Quick Restock Modal */}
             <Modal

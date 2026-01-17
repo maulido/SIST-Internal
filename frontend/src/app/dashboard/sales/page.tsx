@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/Drawer';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { SalesHistory } from '@/components/SalesHistory';
+import { SystemModal } from '@/components/SystemModal';
 
 export default function SalesPage() {
     const [products, setProducts] = useState<any[]>([]);
@@ -23,6 +24,9 @@ export default function SalesPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
 
+    // Confirm Modal State
+    const [modal, setModal] = useState<any>({ isOpen: false, type: 'info', message: '' });
+
     useEffect(() => {
         if (token && !isLoading) {
             axios.get('http://localhost:3000/products', {
@@ -36,7 +40,7 @@ export default function SalesPage() {
         }
     }, [token, isLoading]);
 
-    // Filter Logic
+    // ... (Filter Logic preserved)
     useEffect(() => {
         if (!searchQuery) {
             setFilteredProducts(products);
@@ -61,7 +65,7 @@ export default function SalesPage() {
         setFilteredProducts(filtered);
     }, [searchQuery, products]);
 
-    // Keyboard Shortcut: Focus Search on "/"
+    // ... (Keyboard Shortcut preserved)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === '/' && document.activeElement?.tagName !== 'INPUT') {
@@ -74,7 +78,6 @@ export default function SalesPage() {
     }, []);
 
     const addToCart = (product: any) => {
-        // ... (existing logic)
         if (product.stock <= 0) return; // Prevent adding out of stock
         const existing = cart.find(item => item.productId === product.id);
         if (existing) {
@@ -88,8 +91,6 @@ export default function SalesPage() {
             setCart([...cart, { productId: product.id, name: product.name, price: product.price, quantity: 1, stock: product.stock }]);
         }
     };
-
-    // ... (rest of functions) 
 
     const removeFromCart = (productId: string) => {
         setCart(cart.filter(item => item.productId !== productId));
@@ -112,7 +113,6 @@ export default function SalesPage() {
     const grandTotal = total + tax;
 
     const handleCheckout = async () => {
-        // ... (existing checkout logic)
         setIsProcessing(true);
 
         // Mock Payment Gateway Delay
@@ -148,7 +148,11 @@ export default function SalesPage() {
             setIsReceiptOpen(true);
         } catch (err) {
             console.error(err);
-            alert('Failed to record sale');
+            setModal({
+                isOpen: true,
+                type: 'error',
+                message: 'Failed to record sale'
+            });
         } finally {
             setIsProcessing(false);
         }
@@ -462,6 +466,14 @@ export default function SalesPage() {
                     setTimeout(() => window.print(), 100);
                 }}
             />
+
+            <SystemModal
+                isOpen={modal.isOpen}
+                onClose={() => setModal({ ...modal, isOpen: false })}
+                type={modal.type}
+                message={modal.message}
+            />
+
         </div>
     );
 }

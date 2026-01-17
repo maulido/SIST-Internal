@@ -16,7 +16,7 @@ export class ReportsController {
         return this.reportsService.getProfitLoss();
     }
 
-    @Get('cashflow')
+    @Get('cash-flow')
     getCashflow() {
         return this.reportsService.getCashFlow();
     }

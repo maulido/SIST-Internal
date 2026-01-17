@@ -1,6 +1,6 @@
 @echo off
 echo ==========================================
-echo SIST Cleanup & Restart
+echo SIST Cleanup and Restart
 echo ==========================================
 echo.
 echo [1/3] Killing ALL Node.js processes to free up ports 3000 & 3001...

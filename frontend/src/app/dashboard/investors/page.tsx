@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/Drawer';
+import { SystemModal } from '@/components/SystemModal';
 import { Pagination } from '@/components/Pagination';
 import { usePagination } from '@/hooks/usePagination';
 
@@ -15,8 +16,10 @@ export default function InvestorsPage() {
 
     // Drawer State
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-    const [drawerMode, setDrawerMode] = useState<'CREATE' | 'VIEW'>('CREATE');
+    const [drawerMode, setDrawerMode] = useState<'CREATE' | 'VIEW' | 'DISTRIBUTE'>('CREATE');
     const [selectedInvestor, setSelectedInvestor] = useState<any>(null);
+    const [distributeAmount, setDistributeAmount] = useState('');
+    const [modal, setModal] = useState<any>({ isOpen: false, type: 'info', message: '' });
 
     // Form Data
     const [formData, setFormData] = useState({
@@ -62,6 +65,12 @@ export default function InvestorsPage() {
         setIsDrawerOpen(true);
     };
 
+    const handleOpenDistribute = () => {
+        setDistributeAmount('');
+        setDrawerMode('DISTRIBUTE');
+        setIsDrawerOpen(true);
+    };
+
     // ... (rest of handlers)
 
     const handleOpenView = (inv: any) => {
@@ -82,43 +91,62 @@ export default function InvestorsPage() {
             });
             fetchData();
             setIsDrawerOpen(false);
-            alert('Investor added successfully!');
+            setModal({
+                isOpen: true,
+                type: 'success',
+                message: 'Investor added successfully!'
+            });
         } catch (err: any) {
             console.error(err);
-            alert(err.response?.data?.message || 'Failed to add investor');
+            setModal({
+                isOpen: true,
+                type: 'error',
+                message: err.response?.data?.message || 'Failed to add investor'
+            });
         }
     };
 
-    const handleDistribute = async () => {
-        const amountStr = prompt('Enter the total profit amount to distribute (Rp):');
-        if (!amountStr) return;
+    const handleDistributeSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const amount = Number(distributeAmount);
 
-        const amount = Number(amountStr);
         if (isNaN(amount) || amount <= 0) {
-            alert('Invalid amount');
+            setModal({ isOpen: true, type: 'error', message: 'Invalid amount' });
             return;
         }
 
-        if (!confirm(`Are you sure you want to distribute Rp ${amount.toLocaleString()} to all investors based on their capital share?`)) {
-            return;
-        }
+        // Close drawer first, then show confirm modal
+        setIsDrawerOpen(false);
 
-        try {
-            const res = await axios.post('http://localhost:3000/investors/distribute', { amount }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+        setModal({
+            isOpen: true,
+            type: 'confirm',
+            message: `Are you sure you want to distribute Rp ${amount.toLocaleString()} to all investors based on their capital share?`,
+            onConfirm: async () => {
+                try {
+                    const res = await axios.post('http://localhost:3000/investors/distribute', { amount }, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
 
-            const { totalDistributed, distributions } = res.data;
-            let msg = `Successfully distributed Rp ${totalDistributed.toLocaleString()}!\n\n`;
-            distributions.forEach((d: any) => {
-                msg += `- ${d.investorName}: Rp ${d.amount.toLocaleString()} (${d.shareOrOwnership})\n`;
-            });
-            alert(msg);
-            fetchData();
-        } catch (err: any) {
-            console.error(err);
-            alert('Distribution failed.');
-        }
+                    const { totalDistributed, distributions } = res.data;
+                    let msg = `Successfully distributed Rp ${totalDistributed.toLocaleString()}!`;
+                    setModal({
+                        isOpen: true,
+                        type: 'success',
+                        message: msg
+                    });
+
+                    fetchData();
+                } catch (err: any) {
+                    console.error(err);
+                    setModal({
+                        isOpen: true,
+                        type: 'error',
+                        message: 'Distribution failed.'
+                    });
+                }
+            }
+        });
     };
 
     const totalManagedFund = investors.reduce((acc, curr) => acc + Number(curr.totalInvestment || 0), 0);
@@ -132,7 +160,7 @@ export default function InvestorsPage() {
                 </div>
                 <div className="flex gap-3">
                     <button
-                        onClick={handleDistribute}
+                        onClick={handleOpenDistribute}
                         className="flex items-center gap-2 px-5 py-2.5 border border-violet-500 text-violet-500 rounded-xl font-bold hover:bg-violet-500/10 transition-all"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
@@ -185,46 +213,62 @@ export default function InvestorsPage() {
                     <table className="min-w-full divide-y divide-[var(--card-border)]">
                         <thead className="bg-[var(--foreground)]/5">
                             <tr>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Investor Name</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Join Date</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Status</th>
                                 <th className="px-6 py-4 text-right text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Investment</th>
+                                <th className="px-6 py-4 text-right text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Total Returns</th>
                                 <th className="px-6 py-4 text-right text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Share (%)</th>
                                 <th className="px-6 py-4 text-center text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--card-border)]">
-                            {currentItems.map((inv) => (
-                                <tr key={inv.id} className="hover:bg-[var(--foreground)]/5 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-8 w-8 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-600 flex items-center justify-center font-bold text-xs">
-                                                {inv.user?.name?.charAt(0) || 'I'}
+                            {currentItems.map((inv) => {
+                                // Calculate Returns (Dividends + Withdrawals)
+                                const returns = inv.capitalHistory?.reduce((sum: number, tx: any) => {
+                                    return (tx.type === 'CAPITAL_OUT' || tx.type === 'DIVIDEND_PAYOUT') ? sum + Number(tx.amount) : sum;
+                                }, 0) || 0;
+
+                                return (
+                                    <tr key={inv.id} className="hover:bg-[var(--foreground)]/5 transition-colors">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-8 w-8 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-600 flex items-center justify-center font-bold text-xs">
+                                                    {inv.user?.name?.charAt(0) || 'I'}
+                                                </div>
+                                                <div>
+                                                    <div className="text-sm font-medium text-[var(--foreground)]">
+                                                        <a href={`/dashboard/investors/${inv.id}`} className="hover:text-violet-500 hover:underline">
+                                                            {inv.user?.name || 'Unknown'}
+                                                        </a>
+                                                    </div>
+                                                    <div className="text-xs text-gray-500">{inv.user?.email}</div>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <div className="text-sm font-medium text-[var(--foreground)]">{inv.user?.name || 'Unknown'}</div>
-                                                <div className="text-xs text-gray-500">{inv.user?.email}</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--foreground)]">
-                                        {new Date(inv.createdAt || Date.now()).toLocaleDateString()}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-[var(--foreground)] text-right font-mono">
-                                        Rp {Number(inv.totalInvestment).toLocaleString('id-ID')}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--foreground)] text-right">
-                                        {inv.sharesParam}%
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                                        <button
-                                            onClick={() => handleOpenView(inv)}
-                                            className="text-violet-500 hover:text-violet-600 font-medium text-sm transition-colors"
-                                        >
-                                            View ROI
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${inv.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                {inv.status || 'ACTIVE'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-[var(--foreground)] text-right font-mono">
+                                            Rp {Number(inv.totalInvestment).toLocaleString('id-ID')}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600 text-right font-mono">
+                                            Rp {returns.toLocaleString('id-ID')}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--foreground)] text-right">
+                                            {inv.sharesParam}%
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                            <button
+                                                onClick={() => handleOpenView(inv)}
+                                                className="text-violet-500 hover:text-violet-600 font-medium text-sm transition-colors"
+                                            >
+                                                View ROI
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                             {investors.length === 0 && (
                                 <tr>
                                     <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
@@ -247,7 +291,7 @@ export default function InvestorsPage() {
             <Drawer
                 isOpen={isDrawerOpen}
                 onClose={() => setIsDrawerOpen(false)}
-                title={drawerMode === 'CREATE' ? 'Add Investor' : 'Investment Analysis'}
+                title={drawerMode === 'CREATE' ? 'Add Investor' : (drawerMode === 'DISTRIBUTE' ? 'Distribute Profit' : 'Investment Analysis')}
             >
                 {drawerMode === 'VIEW' ? (
                     <div className="space-y-6">
@@ -341,7 +385,56 @@ export default function InvestorsPage() {
                         </div>
                     </form>
                 )}
+
+                {drawerMode === 'DISTRIBUTE' && (
+                    <form onSubmit={handleDistributeSubmit} className="space-y-6">
+                        <div className="p-4 bg-violet-50 dark:bg-violet-900/10 rounded-lg border border-violet-100 dark:border-violet-900/30 text-sm text-center">
+                            <p className="font-medium text-violet-800 dark:text-violet-300">Profit Distribution</p>
+                            <p className="text-violet-600 dark:text-violet-400 mt-1">
+                                Profit will be distributed to {investors.length} investors proportional to their share ownership.
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-[var(--foreground)]">Total Profit to Distribute (Rp)</label>
+                            <input
+                                type="number"
+                                className="w-full rounded-lg bg-[var(--background)] border border-gray-300 dark:border-[var(--card-border)] p-3 text-[var(--foreground)] focus:border-violet-500 focus:ring-1 focus:ring-violet-500 focus:outline-none transition-all font-mono"
+                                value={distributeAmount}
+                                onChange={e => setDistributeAmount(e.target.value)}
+                                required
+                                min="1"
+                                placeholder="0"
+                                autoFocus
+                            />
+                        </div>
+
+                        <div className="pt-4 flex gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setIsDrawerOpen(false)}
+                                className="flex-1 px-4 py-3 rounded-lg border border-[var(--card-border)] text-[var(--foreground)] hover:bg-[var(--foreground)]/5 transition-colors font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="flex-1 px-4 py-3 rounded-lg bg-violet-600 text-white font-bold hover:bg-violet-700 transition-all shadow-lg shadow-violet-500/30"
+                            >
+                                Distribute
+                            </button>
+                        </div>
+                    </form>
+                )}
             </Drawer>
+
+            <SystemModal
+                isOpen={modal.isOpen}
+                onClose={() => setModal({ ...modal, isOpen: false })}
+                type={modal.type}
+                message={modal.message}
+                onConfirm={modal.onConfirm}
+            />
         </div>
     );
 }

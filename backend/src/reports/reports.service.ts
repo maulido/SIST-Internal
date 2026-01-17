@@ -9,29 +9,23 @@ export class ReportsService {
         private assetsService: AssetsService
     ) { }
 
-
-
-
     async getProfitLoss(startDate?: Date, endDate?: Date) {
-        // 1. Revenue (Sales)
+        // 1. Revenue
         const sales = await (this.prisma as any).transaction.findMany({
             where: { type: 'SALE' },
             include: { items: true }
         });
-        // Filter by date if needed (Todo)
 
         const revenue = sales.reduce((acc, tx) => acc + Number(tx.amount), 0);
 
-        // 2. COGS (Cost of Goods Sold)
+        // 2. COGS
         let cogs = 0;
-        // Pre-fetch all products to avoid N+1 queries in the loop
         const allProducts = await (this.prisma as any).product.findMany();
         const productMap = new Map(allProducts.map(p => [p.id, p]));
 
         for (const sale of sales) {
             if (sale.items) {
                 for (const item of sale.items) {
-                    // Use the map instead of separate DB calls
                     const product = productMap.get(item.productId) as any;
                     if (product) {
                         cogs += (Number(product.cost) * item.quantity);
@@ -41,86 +35,136 @@ export class ReportsService {
         }
 
         const grossProfit = revenue - cogs;
+        const grossMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
 
         // 3. Expenses
         const expenses = await (this.prisma as any).transaction.findMany({
             where: { type: 'EXPENSE' }
         });
+
+        // Categorize Expenses
+        const expenseBreakdown = this.groupByCategory(expenses);
         const totalExpenses = expenses.reduce((acc, tx) => acc + Number(tx.amount), 0);
 
-        const netProfit = grossProfit - totalExpenses;
+        // 4. Operating Income (EBIT)
+        const operatingIncome = grossProfit - totalExpenses;
+
+        // 5. Net Profit (Tax/Interest not yet calculated separate)
+        const netProfit = operatingIncome;
+        const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
 
         return {
             revenue,
             cogs,
             grossProfit,
-            totalExpenses,
+            grossMargin,
+            operatingExpenses: totalExpenses,
+            operatingIncome,
             netProfit,
-            expenseBreakdown: this.groupByCategory(expenses)
+            netMargin,
+            expenseBreakdown
         };
     }
 
     async getCashFlow() {
-        const transactions = await (this.prisma as any).transaction.findMany(); // All time
+        const transactions = await (this.prisma as any).transaction.findMany({
+            orderBy: { date: 'desc' }
+        });
 
-        let inflow = 0;
-        let outflow = 0;
+        const operating = {
+            inflow: 0, // Sales
+            outflow: 0, // Expenses
+            net: 0
+        };
+
+        const investing = {
+            inflow: 0, // Sale of Assets
+            outflow: 0, // Purchase of Assets
+            net: 0
+        };
+
+        const financing = {
+            inflow: 0, // Capital In
+            outflow: 0, // Dividends / Capital Out
+            net: 0
+        };
 
         for (const tx of transactions) {
             const amount = Number(tx.amount);
-            if (tx.type === 'SALE' || tx.type === 'CAPITAL_IN') {
-                inflow += amount;
-            } else if (tx.type === 'EXPENSE' || tx.type === 'CAPITAL_OUT') {
-                outflow += amount;
-            }
+
+            // Operating
+            if (tx.type === 'SALE') operating.inflow += amount;
+            else if (tx.type === 'EXPENSE') operating.outflow += amount;
+
+            // Financing
+            else if (tx.type === 'CAPITAL_IN') financing.inflow += amount;
+            else if (tx.type === 'CAPITAL_OUT' || tx.type === 'DIVIDEND') financing.outflow += amount;
+
+            // Investing (If we add ASSET_PURCHASE type later)
+            else if (tx.type === 'ASSET_PURCHASE') investing.outflow += amount;
         }
 
+        operating.net = operating.inflow - operating.outflow;
+        investing.net = investing.inflow - investing.outflow;
+        financing.net = financing.inflow - financing.outflow;
+
+        const netCashFlow = operating.net + investing.net + financing.net;
+
         return {
-            inflow,
-            outflow,
-            netCashFlow: inflow - outflow
+            operating,
+            investing,
+            financing,
+            netCashFlow,
+            endingCash: netCashFlow // Assuming starting cash was 0
         };
     }
 
     async getBalanceSheet() {
-        // Assets
-        const cash = (await this.getCashFlow()).netCashFlow;
+        // --- ASSETS ---
+        // 1. Current Assets
+        const cashObj = await this.getCashFlow();
+        const cash = cashObj.netCashFlow;
 
         const products = await (this.prisma as any).product.findMany();
-        const inventoryValue = products.reduce((acc, p) => acc + (Number(p.stock) * Number(p.cost)), 0);
+        const inventory = products.reduce((acc, p) => acc + (Number(p.stock) * Number(p.cost)), 0);
 
-        const fixedAssets = await (this.prisma as any).asset.findMany();
-        // Use the AssetsService to calculate real book value (Purchase - Depreciation)
-        const assetsValue = await this.assetsService.getTotalRealAssetValue();
+        // 2. Fixed Assets
+        const fixedAssetsValue = await this.assetsService.getTotalRealAssetValue();
 
-        const totalAssets = cash + inventoryValue + assetsValue;
+        const totalAssets = cash + inventory + fixedAssetsValue;
 
-        // Liabilities (None tracked yet explicitly)
-        const liabilities = 0;
+        // --- LIABILITIES ---
+        // Find UNPAID transactions
+        const unpaidBillls = await (this.prisma as any).transaction.findMany({
+            where: { paymentStatus: 'UNPAID' }
+        });
+        const accountsPayable = unpaidBillls.reduce((acc, tx) => acc + Number(tx.amount), 0);
 
-        // Equity
-        // Capital + Retained Earnings
-        const capitalTx = await (this.prisma as any).transaction.findMany({ where: { OR: [{ type: 'CAPITAL_IN' }, { type: 'CAPITAL_OUT' }] } });
-        const totalCapital = capitalTx.reduce((acc, tx) => tx.type === 'CAPITAL_IN' ? acc + Number(tx.amount) : acc - Number(tx.amount), 0);
+        const totalLiabilities = accountsPayable;
 
-        const retainedEarnings = (await this.getProfitLoss()).netProfit; // This is simplistic (all time numeric)
+        // --- EQUITY ---
+        const investors = await (this.prisma as any).investor.findMany();
+        const capital = investors.reduce((acc, inv) => acc + Number(inv.totalInvestment), 0);
 
-        const totalEquity = totalCapital + retainedEarnings;
+        // Retained Earnings = Assets - Liabilities - Capital
+        const retainedEarnings = totalAssets - totalLiabilities - capital;
 
         return {
             assets: {
                 cash,
-                inventory: inventoryValue,
-                fixedAssets: assetsValue,
+                inventory,
+                fixedAssets: fixedAssetsValue,
                 total: totalAssets
             },
             liabilities: {
-                total: liabilities
+                accountsPayable,
+                longTermDebt: 0,
+                total: totalLiabilities
             },
             equity: {
-                capital: totalCapital,
+                capital,
                 retainedEarnings,
-                total: totalEquity
+                total: capital + retainedEarnings
             }
         };
     }
@@ -384,7 +428,7 @@ export class ReportsService {
         Object.entries(pnl.expenseBreakdown).forEach(([cat, val]) => {
             pnlSheet.addRow([cat, val]);
         });
-        pnlSheet.addRow(['Total Expenses', pnl.totalExpenses]);
+        pnlSheet.addRow(['Total Expenses', pnl.operatingExpenses]);
         pnlSheet.addRow([]);
 
         // Net Profit
@@ -434,6 +478,7 @@ export class ReportsService {
         await workbook.xlsx.write(res);
         res.end();
     }
+
     async getTopProducts(limit: number = 5, startDate?: Date, endDate?: Date) {
         // Fetch all sales transactions with items
         // In a real production app with millions of rows, use raw SQL or specialized analytics DB

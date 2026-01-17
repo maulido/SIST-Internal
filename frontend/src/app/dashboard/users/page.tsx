@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/Drawer';
+import { SystemModal } from '@/components/SystemModal';
 import { Pagination } from '@/components/Pagination';
 import { usePagination } from '@/hooks/usePagination';
 
@@ -15,6 +16,7 @@ export default function UsersPage() {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [drawerMode, setDrawerMode] = useState<'CREATE' | 'EDIT' | 'VIEW'>('CREATE');
     const [selectedUser, setSelectedUser] = useState<any>(null);
+    const [modal, setModal] = useState<{ isOpen: boolean; type: 'success' | 'error' | 'confirm' | 'info'; message: string; onConfirm?: () => void }>({ isOpen: false, type: 'info', message: '' });
 
     // Form Data
     const [formData, setFormData] = useState({
@@ -71,7 +73,7 @@ export default function UsersPage() {
                 await axios.post('http://localhost:3000/users', formData, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                alert('User created successfully!');
+                setModal({ isOpen: true, type: 'success', message: 'User created successfully!' });
             } else if (drawerMode === 'EDIT' && selectedUser) {
                 // Determine what to send. If password is empty, maybe don't send it? 
                 // For simplicity assuming backend handles partial updates or we send everything.
@@ -82,31 +84,36 @@ export default function UsersPage() {
                 await axios.patch(`http://localhost:3000/users/${selectedUser.id}`, updateData, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                alert('User updated successfully!');
+                setModal({ isOpen: true, type: 'success', message: 'User updated successfully!' });
             }
             setIsDrawerOpen(false);
             fetchUsers();
         } catch (err: any) {
             console.error(err);
-            alert(err.response?.data?.message || 'Operation failed');
+            setModal({ isOpen: true, type: 'error', message: err.response?.data?.message || 'Operation failed' });
         }
     };
 
     const handleDelete = async () => {
         if (!selectedUser) return;
-        if (confirm(`Are you sure you want to delete user ${selectedUser.name}? This action cannot be undone.`)) {
-            try {
-                await axios.delete(`http://localhost:3000/users/${selectedUser.id}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                alert('User deleted successfully');
-                fetchUsers();
-                setIsDrawerOpen(false);
-            } catch (err: any) {
-                console.error(err);
-                alert(err.response?.data?.message || 'Failed to delete user');
+        setModal({
+            isOpen: true,
+            type: 'confirm',
+            message: `Are you sure you want to delete user ${selectedUser.name}? This action cannot be undone.`,
+            onConfirm: async () => {
+                try {
+                    await axios.delete(`http://localhost:3000/users/${selectedUser.id}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    setModal({ isOpen: true, type: 'success', message: 'User deleted successfully' });
+                    fetchUsers();
+                    setIsDrawerOpen(false);
+                } catch (err: any) {
+                    console.error(err);
+                    setModal({ isOpen: true, type: 'error', message: err.response?.data?.message || 'Failed to delete user' });
+                }
             }
-        }
+        });
     };
 
     return (
@@ -314,6 +321,14 @@ export default function UsersPage() {
                     </form>
                 )}
             </Drawer>
+
+            <SystemModal
+                isOpen={modal.isOpen}
+                onClose={() => setModal({ ...modal, isOpen: false })}
+                type={modal.type}
+                message={modal.message}
+                onConfirm={modal.onConfirm}
+            />
         </div>
     );
 }
