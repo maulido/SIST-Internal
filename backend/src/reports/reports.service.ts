@@ -434,4 +434,112 @@ export class ReportsService {
         await workbook.xlsx.write(res);
         res.end();
     }
+    async getTopProducts(limit: number = 5, startDate?: Date, endDate?: Date) {
+        // Fetch all sales transactions with items
+        // In a real production app with millions of rows, use raw SQL or specialized analytics DB
+        const where: any = { type: 'SALE' };
+        if (startDate && endDate) {
+            where.createdAt = { gte: startDate, lte: endDate };
+        }
+
+        const sales = await (this.prisma as any).transaction.findMany({
+            where,
+            include: { items: { include: { product: true } } }
+        });
+
+        const productMap = new Map<string, { name: string; sku: string; quantity: number; revenue: number }>();
+
+        for (const sale of sales) {
+            for (const item of sale.items) {
+                if (!item.product) continue;
+                const existing = productMap.get(item.productId) || {
+                    name: item.product.name,
+                    sku: item.product.sku,
+                    quantity: 0,
+                    revenue: 0
+                };
+
+                existing.quantity += item.quantity;
+                existing.revenue += Number(item.subtotal);
+                productMap.set(item.productId, existing);
+            }
+        }
+
+        const sorted = Array.from(productMap.values()).sort((a, b) => b.revenue - a.revenue);
+        return sorted.slice(0, limit);
+    }
+
+    async getSalesTrend(days: number = 30) {
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(endDate.getDate() - days);
+
+        const transactions = await (this.prisma as any).transaction.findMany({
+            where: {
+                createdAt: { gte: startDate }
+            },
+            include: { items: { include: { product: true } } }
+        });
+
+        // Initialize daily map
+        const dailyStats = new Map<string, { date: string; revenue: number; expense: number; profit: number }>();
+
+        // Helper to format date YYYY-MM-DD
+        const formatDate = (date: Date) => date.toISOString().split('T')[0];
+
+        // Fill zero values for all days
+        for (let i = 0; i <= days; i++) {
+            const d = new Date(startDate);
+            d.setDate(d.getDate() + i);
+            const dateStr = formatDate(d);
+            dailyStats.set(dateStr, { date: dateStr, revenue: 0, expense: 0, profit: 0 });
+        }
+
+        for (const tx of transactions) {
+            const dateStr = formatDate(new Date(tx.createdAt));
+            const entry = dailyStats.get(dateStr) || { date: dateStr, revenue: 0, expense: 0, profit: 0 };
+            const amount = Number(tx.amount);
+
+            if (tx.type === 'SALE') {
+                entry.revenue += amount;
+                // Simple profit calc: Revenue - (Cost * Qty)
+                let cost = 0;
+                if (tx.items) {
+                    for (const item of tx.items) {
+                        // Note: We are using current cost, ideally should be historical cost snapshot
+                        cost += (Number(item.product?.cost || 0) * item.quantity);
+                    }
+                }
+                entry.profit += (amount - cost);
+            } else if (tx.type === 'EXPENSE') {
+                entry.expense += amount;
+                entry.profit -= amount;
+            }
+
+            dailyStats.set(dateStr, entry);
+        }
+
+        return Array.from(dailyStats.values()).sort((a, b) => a.date.localeCompare(b.date));
+    }
+
+    async getKeyMetrics(startDate?: Date, endDate?: Date) {
+        const pl = await this.getProfitLoss(startDate, endDate);
+        const revenue = pl.revenue;
+        const grossProfit = pl.grossProfit;
+        const netProfit = pl.netProfit;
+
+        const salesCount = await (this.prisma as any).transaction.count({
+            where: {
+                type: 'SALE',
+                ...(startDate && endDate ? { createdAt: { gte: startDate, lte: endDate } } : {})
+            }
+        });
+
+        return {
+            grossMargin: revenue > 0 ? (grossProfit / revenue) * 100 : 0,
+            netMargin: revenue > 0 ? (netProfit / revenue) * 100 : 0,
+            aov: salesCount > 0 ? revenue / salesCount : 0, // Average Order Value
+            salesCount
+        };
+    }
 }

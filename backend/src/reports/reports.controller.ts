@@ -40,4 +40,19 @@ export class ReportsController {
     async exportReport(@Res() res: Response) {
         return this.reportsService.generateExcelReport(res);
     }
+
+    @Get('top-products')
+    getTopProducts() {
+        return this.reportsService.getTopProducts();
+    }
+
+    @Get('sales-trend')
+    getSalesTrend() {
+        return this.reportsService.getSalesTrend();
+    }
+
+    @Get('key-metrics')
+    getKeyMetrics() {
+        return this.reportsService.getKeyMetrics();
+    }
 }

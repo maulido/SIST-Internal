@@ -89,28 +89,12 @@ export default function AssetsPage() {
         }
     };
 
-    // Calculate Depreciation
-    const calculateDepreciation = (asset: any) => {
-        if (!asset) return { currentValue: 0, depreciatedAmount: 0, monthsElapsed: 0 };
+    // ... logic ...
 
-        const purchaseDate = new Date(asset.purchaseDate);
-        const now = new Date();
-        const monthsElapsed = (now.getFullYear() - purchaseDate.getFullYear()) * 12 + (now.getMonth() - purchaseDate.getMonth());
+    // Note: client-side calculateDepreciation removed. Using backend values.
 
-        // Straight Line Depreciation
-        // Monthly Dep = Price / Useful Life
-        const monthlyDepreciation = asset.purchasePrice / Math.max(asset.usefulLife, 1);
-        const totalDepreciation = Math.min(monthlyDepreciation * Math.max(monthsElapsed, 0), asset.purchasePrice);
-        const currentValue = asset.purchasePrice - totalDepreciation;
-
-        return {
-            currentValue,
-            depreciatedAmount: totalDepreciation,
-            monthsElapsed: Math.max(monthsElapsed, 0)
-        };
-    };
-
-    const totalAssetValue = assets.reduce((acc, curr) => acc + curr.purchasePrice, 0);
+    const totalAssetValue = assets.reduce((acc, curr) => acc + Number(curr.purchasePrice), 0);
+    const totalBookValue = assets.reduce((acc, curr) => acc + Number(curr.currentValue || 0), 0);
 
     return (
         <div className="space-y-6">
@@ -133,13 +117,12 @@ export default function AssetsPage() {
             {/* Asset Summary */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6 backdrop-blur-sm shadow-sm relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 text-[var(--foreground)]">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-                        </svg>
-                    </div>
                     <p className="text-sm font-medium text-gray-500 uppercase tracking-widest">Total Asset Value (Purchase)</p>
                     <p className="mt-2 text-3xl font-bold text-[var(--foreground)]">Rp {totalAssetValue.toLocaleString('id-ID')}</p>
+                </div>
+                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6 backdrop-blur-sm shadow-sm relative overflow-hidden group">
+                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Current Book Value</p>
+                    <p className="mt-2 text-3xl font-bold text-[var(--foreground)]">Rp {totalBookValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}</p>
                 </div>
             </div>
 
@@ -167,6 +150,7 @@ export default function AssetsPage() {
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Category</th>
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Acquired</th>
                                 <th className="px-6 py-4 text-right text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Purchase Price</th>
+                                <th className="px-6 py-4 text-right text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Current Value</th>
                                 <th className="px-6 py-4 text-center text-xs font-semibold text-[var(--foreground)] uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
@@ -187,19 +171,22 @@ export default function AssetsPage() {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-[var(--foreground)] text-right font-mono">
                                         Rp {Number(asset.purchasePrice).toLocaleString('id-ID')}
                                     </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-emerald-600 dark:text-emerald-400 text-right font-mono">
+                                        Rp {Number(asset.currentValue || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}
+                                    </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-center">
                                         <button
                                             onClick={() => handleOpenView(asset)}
                                             className="text-sky-500 hover:text-sky-600 font-medium text-sm transition-colors"
                                         >
-                                            View & Depreciate
+                                            View Details
                                         </button>
                                     </td>
                                 </tr>
                             ))}
                             {assets.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                                         No assets registered yet.
                                     </td>
                                 </tr>
@@ -224,34 +211,29 @@ export default function AssetsPage() {
                 {drawerMode === 'VIEW' ? (
                     <div className="space-y-6">
                         {/* Valuation Card */}
-                        {(() => {
-                            const dep = calculateDepreciation(selectedAsset);
-                            return (
-                                <div className="space-y-6">
-                                    <div className="p-6 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white shadow-lg relative overflow-hidden">
-                                        <div className="relative z-10 text-center">
-                                            <p className="text-slate-400 text-xs uppercase tracking-widest mb-1">Current Book Value</p>
-                                            <h3 className="text-4xl font-bold">Rp {dep.currentValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}</h3>
-                                            <div className="mt-4 flex justify-between text-xs text-slate-400 border-t border-slate-700 pt-4">
-                                                <span>Original: Rp {Number(selectedAsset?.purchasePrice).toLocaleString('id-ID')}</span>
-                                                <span className="text-red-400">Depreciated: -Rp {dep.depreciatedAmount.toLocaleString('id-ID', { maximumFractionDigits: 0 })}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="p-4 rounded-lg border border-[var(--card-border)] bg-[var(--background)]">
-                                            <label className="text-xs text-gray-500 uppercase tracking-wide">Age</label>
-                                            <p className="text-sm font-medium text-[var(--foreground)] mt-1">{dep.monthsElapsed} months</p>
-                                        </div>
-                                        <div className="p-4 rounded-lg border border-[var(--card-border)] bg-[var(--background)]">
-                                            <label className="text-xs text-gray-500 uppercase tracking-wide">Est. Useful Life</label>
-                                            <p className="text-sm font-medium text-[var(--foreground)] mt-1">{selectedAsset?.usefulLife} months</p>
-                                        </div>
+                        <div className="space-y-6">
+                            <div className="p-6 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white shadow-lg relative overflow-hidden">
+                                <div className="relative z-10 text-center">
+                                    <p className="text-slate-400 text-xs uppercase tracking-widest mb-1">Current Book Value</p>
+                                    <h3 className="text-4xl font-bold">Rp {Number(selectedAsset?.currentValue || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}</h3>
+                                    <div className="mt-4 flex justify-between text-xs text-slate-400 border-t border-slate-700 pt-4">
+                                        <span>Original: Rp {Number(selectedAsset?.purchasePrice).toLocaleString('id-ID')}</span>
+                                        <span className="text-red-400">Depreciated: -Rp {Number(selectedAsset?.totalDepreciation || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}</span>
                                     </div>
                                 </div>
-                            );
-                        })()}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-4 rounded-lg border border-[var(--card-border)] bg-[var(--background)]">
+                                    <label className="text-xs text-gray-500 uppercase tracking-wide">Age</label>
+                                    <p className="text-sm font-medium text-[var(--foreground)] mt-1">{selectedAsset?.monthsElapsed || 0} months</p>
+                                </div>
+                                <div className="p-4 rounded-lg border border-[var(--card-border)] bg-[var(--background)]">
+                                    <label className="text-xs text-gray-500 uppercase tracking-wide">Est. Useful Life</label>
+                                    <p className="text-sm font-medium text-[var(--foreground)] mt-1">{selectedAsset?.usefulLife} months</p>
+                                </div>
+                            </div>
+                        </div>
 
                         <div className="space-y-3 pt-6 border-t border-[var(--card-border)]">
                             <h4 className="font-bold text-[var(--foreground)]">Details</h4>

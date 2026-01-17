@@ -3,21 +3,78 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
+import FinancialHealthCards from '@/components/dashboard/FinancialHealthCards';
+import { SalesTrendChart } from '@/components/dashboard/SalesTrendChart';
+import { TopProducts } from '@/components/dashboard/TopProducts';
 
 export default function AnalysisPage() {
-    return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h3 className="text-3xl font-bold text-[var(--foreground)]">Business Analytics</h3>
-                    <p className="text-gray-500">Break-even simulation and revenue forecasting</p>
-                </div>
-            </div>
+    const { token } = useAuth();
+    const [loading, setLoading] = useState(true);
+    const [metrics, setMetrics] = useState<any>(null);
+    const [salesTrend, setSalesTrend] = useState<any>([]);
+    const [topProducts, setTopProducts] = useState<any>([]);
+    const [forecastData, setForecastData] = useState<any>(null);
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <BreakEvenSimulator />
-                <RevenueForecast />
+    useEffect(() => {
+        if (token) {
+            const fetchData = async () => {
+                setLoading(true);
+                try {
+                    const headers = { Authorization: `Bearer ${token}` };
+                    const [metricsRes, trendRes, productsRes, forecastRes] = await Promise.all([
+                        axios.get('http://localhost:3000/reports/key-metrics', { headers }),
+                        axios.get('http://localhost:3000/reports/sales-trend', { headers }),
+                        axios.get('http://localhost:3000/reports/top-products', { headers }),
+                        axios.get('http://localhost:3000/reports/forecast', { headers })
+                    ]);
+
+                    setMetrics(metricsRes.data);
+                    setSalesTrend(trendRes.data);
+                    setTopProducts(productsRes.data);
+                    setForecastData(forecastRes.data);
+                } catch (error) {
+                    console.error('Failed to fetch analysis data', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            fetchData();
+        }
+    }, [token]);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-96">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-500"></div>
             </div>
+        );
+    }
+
+    return (
+        <div className="space-y-8">
+            <header>
+                <h3 className="text-3xl font-bold text-[var(--foreground)]">Business Analytics</h3>
+                <p className="text-gray-500">Real-time insights and performance simulations</p>
+            </header>
+
+            <section>
+                <FinancialHealthCards metrics={metrics} />
+            </section>
+
+            <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                    <SalesTrendChart data={salesTrend} />
+                </div>
+                <div>
+                    <TopProducts products={topProducts} />
+                </div>
+            </section>
+
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <RevenueForecast data={forecastData} />
+                <BreakEvenSimulator />
+            </section>
         </div>
     );
 }
@@ -123,24 +180,8 @@ function BreakEvenSimulator() {
     );
 }
 
-function RevenueForecast() {
-    const [data, setData] = useState<any>(null);
-    const { token } = useAuth();
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        if (token) {
-            axios.get('http://localhost:3000/reports/forecast', { headers: { Authorization: `Bearer ${token}` } })
-                .then(res => {
-                    setData(res.data);
-                    setLoading(false);
-                })
-                .catch(err => {
-                    console.error(err);
-                    setLoading(false);
-                });
-        }
-    }, [token]);
+function RevenueForecast({ data }: { data: any }) {
+    if (!data) return null;
 
     return (
         <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] backdrop-blur-sm p-6 shadow-sm flex flex-col h-full">
@@ -151,9 +192,7 @@ function RevenueForecast() {
                 AI Revenue Forecast
             </h4>
 
-            {loading ? (
-                <div className="flex-1 flex items-center justify-center text-gray-500">Loading forecast model...</div>
-            ) : data && !data.error ? (
+            {data && !data.error ? (
                 <div className="flex-1 space-y-6">
                     <div className="p-4 rounded-xl bg-violet-500/10 border border-violet-500/20">
                         <div className="flex justify-between items-center">

@@ -20,7 +20,14 @@ export class AssetsService {
     }
 
     async findAll() {
-        return (this.prisma as any).asset.findMany();
+        const assets = await (this.prisma as any).asset.findMany();
+        return assets.map(asset => {
+            const dep = this.calculateDepreciation(asset);
+            return {
+                ...asset,
+                ...dep // adds monthlyDepreciation, monthsElapsed, totalDepreciation, currentValue
+            };
+        });
     }
 
     async findOne(id: string) {
