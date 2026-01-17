@@ -92,6 +92,23 @@ export default function UsersPage() {
         }
     };
 
+    const handleDelete = async () => {
+        if (!selectedUser) return;
+        if (confirm(`Are you sure you want to delete user ${selectedUser.name}? This action cannot be undone.`)) {
+            try {
+                await axios.delete(`http://localhost:3000/users/${selectedUser.id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                alert('User deleted successfully');
+                fetchUsers();
+                setIsDrawerOpen(false);
+            } catch (err: any) {
+                console.error(err);
+                alert(err.response?.data?.message || 'Failed to delete user');
+            }
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* Header / Actions */}
@@ -271,6 +288,15 @@ export default function UsersPage() {
                         </div>
 
                         <div className="pt-4 flex gap-3">
+                            {drawerMode === 'EDIT' && (
+                                <button
+                                    type="button"
+                                    onClick={handleDelete}
+                                    className="px-4 py-3 rounded-lg border border-red-500/50 text-red-500 hover:bg-red-500/10 transition-colors font-medium"
+                                >
+                                    Delete
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={() => setIsDrawerOpen(false)}

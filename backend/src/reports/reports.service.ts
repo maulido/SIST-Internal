@@ -265,22 +265,11 @@ export class ReportsService {
 
         try {
             // Fetch advanced stats
-            console.log('Fetching recentTransactions...');
             const recentTransactions = await this.getRecentTransactions();
-
-            console.log('Fetching topProducts...');
             const topProducts = await this.getTopSellingProducts();
-
-            console.log('Fetching lowStockAlerts...');
             const lowStockAlerts = await this.getLowStockAlerts();
-
-            console.log('Fetching revenueForecast...');
             const revenueForecast = await this.getRevenueForecast(); // existing
-
-            console.log('Fetching category stats...');
             const salesByCategory = await this.getSalesByCategory();
-
-            console.log('Fetching payment stats...');
             const salesByPaymentMethod = await this.getSalesByPaymentMethod();
 
             return {

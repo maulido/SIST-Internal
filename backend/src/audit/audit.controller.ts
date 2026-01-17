@@ -1,5 +1,5 @@
 import { Controller, Get, UseGuards, Query, Res } from '@nestjs/common';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { AuditService } from './audit.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from '../auth/roles.decorator';

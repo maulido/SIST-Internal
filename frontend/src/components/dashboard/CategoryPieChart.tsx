@@ -31,7 +31,7 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
                         ))}
                     </Pie>
                     <Tooltip
-                        formatter={(value: number) => `Rp ${value.toLocaleString()}`}
+                        formatter={(value: any) => `Rp ${value.toLocaleString()}`}
                         contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)', color: 'var(--foreground)' }}
                     />
                     <Legend />

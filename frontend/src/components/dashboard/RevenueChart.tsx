@@ -58,7 +58,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
                             borderRadius: '12px',
                             color: 'var(--foreground)'
                         }}
-                        formatter={(value: number) => [`Rp ${value.toLocaleString()}`, 'Revenue']}
+                        formatter={(value: any) => [`Rp ${value.toLocaleString()}`, 'Revenue']}
                         labelFormatter={(label) => new Date(label).toLocaleDateString()}
                     />
                     <Area

@@ -80,4 +80,21 @@ export class UsersService {
 
         return updatedUser;
     }
+
+    async remove(id: string, modifierId?: string): Promise<User> {
+        const deletedUser = await (this.prisma as any).user.delete({
+            where: { id },
+        });
+
+        // Audit Log
+        await this.auditService.log(
+            modifierId || null,
+            'DELETE',
+            'User',
+            id,
+            `Deleted user ${deletedUser.email}`
+        );
+
+        return deletedUser;
+    }
 }

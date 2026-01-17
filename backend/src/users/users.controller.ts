@@ -35,4 +35,10 @@ export class UsersController {
     update(@Param('id') id: string, @Body() updateData: any, @Request() req: any) {
         return this.usersService.update(id, updateData, req.user?.userId);
     }
+
+    @Delete(':id')
+    @Roles('OWNER')
+    remove(@Param('id') id: string, @Request() req: any) {
+        return this.usersService.remove(id, req.user?.userId);
+    }
 }

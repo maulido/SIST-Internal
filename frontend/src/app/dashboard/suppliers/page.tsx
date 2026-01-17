@@ -11,7 +11,7 @@ export default function SuppliersPage() {
 
     // Drawer & Selection
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-    const [drawerMode, setDrawerMode] = useState<'CREATE' | 'VIEW'>('CREATE');
+    const [drawerMode, setDrawerMode] = useState<'CREATE' | 'VIEW' | 'EDIT'>('CREATE');
     const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
 
     const [formData, setFormData] = useState({
@@ -79,6 +79,20 @@ export default function SuppliersPage() {
             category: supplier.category || 'Raw Material'
         });
         setDrawerMode('VIEW'); // VIEW actually behaves like "Details + Edit" usually?
+        setIsDrawerOpen(true);
+    };
+
+    const handleOpenEdit = (supplier: any) => {
+        setSelectedSupplier(supplier);
+        setFormData({
+            name: supplier.name,
+            contactPerson: supplier.contactPerson || '',
+            email: supplier.email || '',
+            phone: supplier.phone || '',
+            address: supplier.address || '',
+            category: supplier.category || 'Raw Material'
+        });
+        setDrawerMode('EDIT');
         setIsDrawerOpen(true);
     };
 
@@ -189,12 +203,25 @@ export default function SuppliersPage() {
                                             {supplier.category}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                    <td className="px-6 py-4 whitespace-nowrap text-center flex items-center justify-center gap-2">
                                         <button
                                             onClick={() => handleOpenView(supplier)}
-                                            className="text-amber-500 hover:text-amber-600 font-medium text-sm transition-colors"
+                                            className="text-blue-500 hover:text-blue-600 font-medium text-sm transition-colors"
+                                            title="View Details"
                                         >
-                                            View/Edit
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            onClick={() => handleOpenEdit(supplier)}
+                                            className="text-amber-500 hover:text-amber-600 font-medium text-sm transition-colors"
+                                            title="Edit"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                            </svg>
                                         </button>
                                     </td>
                                 </tr>
@@ -214,7 +241,7 @@ export default function SuppliersPage() {
             <Drawer
                 isOpen={isDrawerOpen}
                 onClose={() => setIsDrawerOpen(false)}
-                title={drawerMode === 'CREATE' ? 'Add Supplier' : 'Edit Supplier'}
+                title={drawerMode === 'CREATE' ? 'Add Supplier' : drawerMode === 'EDIT' ? 'Edit Supplier' : 'Supplier Details'}
             >
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-2">
@@ -286,7 +313,7 @@ export default function SuppliersPage() {
                     </div>
 
                     <div className="pt-4 flex gap-3">
-                        {drawerMode === 'VIEW' && (
+                        {(drawerMode === 'VIEW' || drawerMode === 'EDIT') && (
                             <button
                                 type="button"
                                 onClick={handleDelete}
