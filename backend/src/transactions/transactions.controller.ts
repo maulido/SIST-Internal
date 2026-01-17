@@ -31,4 +31,9 @@ export class TransactionsController {
     findByInvestor(@Param('investorId') investorId: string) {
         return this.transactionsService.findByInvestor(investorId);
     }
+
+    @Get('my-stats')
+    getMyStats(@Request() req: any) {
+        return this.transactionsService.getMyStats(req.user?.userId || req.user?.sub);
+    }
 }

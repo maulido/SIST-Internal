@@ -4,16 +4,24 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { RevenueChart } from '@/components/dashboard/RevenueChart';
 import { TopProducts } from '@/components/dashboard/TopProducts';
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart';
 import { PaymentMethodChart } from '@/components/dashboard/PaymentMethodChart';
 import RecentActivityWidget from '@/components/RecentActivityWidget';
+import { CashierDashboard } from '@/components/CashierDashboard';
 
 export default function DashboardPage() {
     const [stats, setStats] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const { user, token } = useAuth();
+    const router = useRouter();
+
+    // Render Cashier Dashboard specifically
+    if (user?.role === 'KASIR') {
+        return <CashierDashboard />;
+    }
 
     useEffect(() => {
         if (token) {
@@ -29,12 +37,15 @@ export default function DashboardPage() {
                 })
                 .catch(err => {
                     console.error('Fetch error:', err);
-                    setError(err.response?.data?.message || err.message || 'Failed to fetch data');
+                    // Don't show error for KASIR if redirect is pending (though return above should handle it)
+                    if (user?.role !== 'KASIR') {
+                        setError(err.response?.data?.message || err.message || 'Failed to fetch data');
+                    }
                 });
         } else {
             // console.log('No token available yet');
         }
-    }, [token]);
+    }, [token, user, router]);
 
     const getTimeGreeting = () => {
         const hour = new Date().getHours();

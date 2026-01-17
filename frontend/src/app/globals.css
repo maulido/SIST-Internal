@@ -78,23 +78,34 @@ body {
 @media print {
   @page {
     margin: 0;
-    size: 80mm auto;
+    size: auto;
   }
 
   body * {
     visibility: hidden;
   }
 
-  .print\:block,
-  .print\:block * {
+  /* Make the receipt and all its children visible */
+  .printable-receipt,
+  .printable-receipt * {
     visibility: visible;
   }
 
-  .print\:block {
+  /* Position the receipt at the top-left */
+  .printable-receipt {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
+    margin: 0;
+    padding: 20px;
+    background: white;
+    color: black;
+  }
+
+  /* Ensure text colors are dark for printing */
+  .printable-receipt :is(h1, h2, h3, h4, p, span, div, td, th) {
+    color: black !important;
   }
 
   /* Hide scrollbars during print */

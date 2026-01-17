@@ -132,4 +132,33 @@ export class TransactionsService {
             orderBy: { date: 'desc' }
         });
     }
+
+    async getMyStats(userId: string) {
+        const today = new Date();
+        const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+
+        const salesToday = await (this.prisma as any).transaction.aggregate({
+            where: {
+                creatorId: userId,
+                type: 'SALE',
+                date: { gte: startOfDay, lte: endOfDay }
+            },
+            _sum: { amount: true },
+            _count: { id: true }
+        });
+
+        const recentTransactions = await (this.prisma as any).transaction.findMany({
+            where: { creatorId: userId },
+            take: 5,
+            orderBy: { date: 'desc' },
+            include: { items: { include: { product: true } } }
+        });
+
+        return {
+            salesCountToday: salesToday._count.id || 0,
+            revenueToday: salesToday._sum.amount || 0,
+            recentTransactions
+        };
+    }
 }
