@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
+import { AuditService } from '../audit/audit.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -22,6 +23,10 @@ describe('AuthService', () => {
             sign: jest.fn(),
           },
         },
+        {
+          provide: AuditService,
+          useValue: { log: jest.fn() }
+        }
       ],
     }).compile();
 

@@ -89,6 +89,8 @@ export default function ActivityPage() {
                         <option value="User">Users</option>
                         <option value="Investor">Investors</option>
                         <option value="Supplier">Suppliers</option>
+                        <option value="Asset">Assets</option>
+                        <option value="Auth">Authentication</option>
                         <option value="Refund">Refunds</option>
                     </select>
                     <button

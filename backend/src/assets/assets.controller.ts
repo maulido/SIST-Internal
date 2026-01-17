@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards, Request } from '@nestjs/common';
 import { AssetsService } from './assets.service';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -8,8 +8,8 @@ export class AssetsController {
     constructor(private readonly assetsService: AssetsService) { }
 
     @Post()
-    create(@Body() createAssetDto: any) {
-        return this.assetsService.create(createAssetDto);
+    create(@Request() req, @Body() createAssetDto: any) {
+        return this.assetsService.create(createAssetDto, req.user.id);
     }
 
     @Get()
@@ -23,12 +23,12 @@ export class AssetsController {
     }
 
     @Put(':id')
-    update(@Param('id') id: string, @Body() updateAssetDto: any) {
-        return this.assetsService.update(id, updateAssetDto);
+    update(@Request() req, @Param('id') id: string, @Body() updateAssetDto: any) {
+        return this.assetsService.update(id, updateAssetDto, req.user.id);
     }
 
     @Delete(':id')
-    remove(@Param('id') id: string) {
-        return this.assetsService.remove(id);
+    remove(@Request() req, @Param('id') id: string) {
+        return this.assetsService.remove(id, req.user.id);
     }
 }

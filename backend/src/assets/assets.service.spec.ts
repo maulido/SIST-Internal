@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AssetsService } from './assets.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 describe('AssetsService', () => {
   let service: AssetsService;
@@ -15,6 +16,10 @@ describe('AssetsService', () => {
             asset: { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
           },
         },
+        {
+          provide: AuditService,
+          useValue: { log: jest.fn() }
+        }
       ],
     }).compile();
 

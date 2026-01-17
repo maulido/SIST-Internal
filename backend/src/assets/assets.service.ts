@@ -1,16 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 type AssetCreateInput = any;
 type AssetUpdateInput = any;
 
 @Injectable()
 export class AssetsService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private auditService: AuditService
+    ) { }
 
-    async create(data: AssetCreateInput) {
+    async create(data: AssetCreateInput, userId?: string) {
         // Assuming data includes purchasePrice, salvageValue, usefulLife
-        return (this.prisma as any).asset.create({ data });
+        const asset = await (this.prisma as any).asset.create({ data });
+        await this.auditService.log(userId || null, 'CREATE', 'Asset', asset.id, `Created asset ${asset.name}`);
+        return asset;
     }
 
     async findAll() {
@@ -23,17 +29,21 @@ export class AssetsService {
         });
     }
 
-    async update(id: string, data: AssetUpdateInput) {
-        return (this.prisma as any).asset.update({
+    async update(id: string, data: AssetUpdateInput, userId?: string) {
+        const asset = await (this.prisma as any).asset.update({
             where: { id },
             data,
         });
+        await this.auditService.log(userId || null, 'UPDATE', 'Asset', asset.id, `Updated asset ${asset.name}`);
+        return asset;
     }
 
-    async remove(id: string) {
-        return (this.prisma as any).asset.delete({
+    async remove(id: string, userId?: string) {
+        const asset = await (this.prisma as any).asset.delete({
             where: { id },
         });
+        await this.auditService.log(userId || null, 'DELETE', 'Asset', asset.id, `Deleted asset ${asset.name}`);
+        return asset;
     }
 
     // Calculate depreciation (Straight Line Method)
